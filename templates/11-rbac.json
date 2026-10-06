@@ -1,0 +1,108 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.48.1.52935",
+      "templateHash": "13703273637607737562"
+    }
+  },
+  "parameters": {
+    "principalId": {
+      "type": "string"
+    },
+    "keyVaultName": {
+      "type": "string"
+    },
+    "storageName": {
+      "type": "string"
+    },
+    "searchName": {
+      "type": "string"
+    },
+    "openAiName": {
+      "type": "string"
+    },
+    "cosmosName": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "roles": {
+      "keyVaultSecretsUser": "4633458b-17de-408a-b874-0521c86ef8ab",
+      "storageBlobDataContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+      "searchIndexDataContributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
+      "searchServiceContributor": "7ca78c08-252a-4471-8644-bb5ff32d4ba0",
+      "openAiUser": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd"
+    },
+    "cosmosDataContributorId": "00000000-0000-0000-0000-000000000002"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('principalId'), variables('roles').keyVaultSecretsUser)]",
+      "properties": {
+        "principalId": "[parameters('principalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').keyVaultSecretsUser)]"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('storageName')), parameters('principalId'), variables('roles').storageBlobDataContributor)]",
+      "properties": {
+        "principalId": "[parameters('principalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').storageBlobDataContributor)]"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
+      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchName')), parameters('principalId'), variables('roles').searchIndexDataContributor)]",
+      "properties": {
+        "principalId": "[parameters('principalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').searchIndexDataContributor)]"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
+      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchName')), parameters('principalId'), variables('roles').searchServiceContributor)]",
+      "properties": {
+        "principalId": "[parameters('principalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').searchServiceContributor)]"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiName'))]",
+      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiName')), parameters('principalId'), variables('roles').openAiUser)]",
+      "properties": {
+        "principalId": "[parameters('principalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').openAiUser)]"
+      }
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+      "apiVersion": "2024-05-15",
+      "name": "[format('{0}/{1}', parameters('cosmosName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosName')), parameters('principalId'), variables('cosmosDataContributorId')))]",
+      "properties": {
+        "principalId": "[parameters('principalId')]",
+        "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/{1}', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosName')), variables('cosmosDataContributorId'))]",
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosName'))]"
+      }
+    }
+  ]
+}

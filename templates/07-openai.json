@@ -1,0 +1,219 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.48.1.52935",
+      "templateHash": "2147938372885478985"
+    }
+  },
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Region for the Azure OpenAI account (must offer the chosen models)."
+      }
+    },
+    "peLocation": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Region of the VNet that hosts the private endpoint."
+      }
+    },
+    "accountSku": {
+      "type": "string",
+      "defaultValue": "S0"
+    },
+    "chatDeploymentName": {
+      "type": "string",
+      "defaultValue": "chat"
+    },
+    "chatModelName": {
+      "type": "string"
+    },
+    "chatModelVersion": {
+      "type": "string"
+    },
+    "chatDeploymentSku": {
+      "type": "string",
+      "defaultValue": "Standard"
+    },
+    "chatCapacity": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "Capacity in thousands of tokens per minute."
+      }
+    },
+    "embeddingDeploymentName": {
+      "type": "string",
+      "defaultValue": "embedding"
+    },
+    "embeddingModelName": {
+      "type": "string",
+      "defaultValue": "text-embedding-3-large"
+    },
+    "embeddingModelVersion": {
+      "type": "string",
+      "defaultValue": "1"
+    },
+    "embeddingDeploymentSku": {
+      "type": "string",
+      "defaultValue": "Standard"
+    },
+    "embeddingCapacity": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "Capacity in thousands of tokens per minute."
+      }
+    },
+    "peSubnetId": {
+      "type": "string"
+    },
+    "dnsZoneId": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "tags": {
+      "project": "[parameters('namePrefix')]",
+      "environment": "[parameters('environment')]"
+    },
+    "suffix": "[take(uniqueString(resourceGroup().id), 5)]",
+    "accountName": "[toLower(format('oai-{0}-{1}-{2}', take(parameters('namePrefix'), 12), take(parameters('environment'), 3), variables('suffix')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2024-10-01",
+      "name": "[variables('accountName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "kind": "OpenAI",
+      "sku": {
+        "name": "[parameters('accountSku')]"
+      },
+      "properties": {
+        "customSubDomainName": "[variables('accountName')]",
+        "publicNetworkAccess": "Disabled",
+        "networkAcls": {
+          "defaultAction": "Deny"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2024-10-01",
+      "name": "[format('{0}/{1}', variables('accountName'), parameters('embeddingDeploymentName'))]",
+      "sku": {
+        "name": "[parameters('embeddingDeploymentSku')]",
+        "capacity": "[parameters('embeddingCapacity')]"
+      },
+      "properties": {
+        "model": {
+          "format": "OpenAI",
+          "name": "[parameters('embeddingModelName')]",
+          "version": "[parameters('embeddingModelVersion')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2024-10-01",
+      "name": "[format('{0}/{1}', variables('accountName'), parameters('chatDeploymentName'))]",
+      "sku": {
+        "name": "[parameters('chatDeploymentSku')]",
+        "capacity": "[parameters('chatCapacity')]"
+      },
+      "properties": {
+        "model": {
+          "format": "OpenAI",
+          "name": "[parameters('chatModelName')]",
+          "version": "[parameters('chatModelVersion')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('accountName'), parameters('embeddingDeploymentName'))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2024-05-01",
+      "name": "[format('pe-{0}', variables('accountName'))]",
+      "location": "[parameters('peLocation')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "subnet": {
+          "id": "[parameters('peSubnetId')]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "openai-connection",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]",
+              "groupIds": [
+                "account"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2024-05-01",
+      "name": "[format('{0}/{1}', format('pe-{0}', variables('accountName')), 'default')]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "openai",
+            "properties": {
+              "privateDnsZoneId": "[parameters('dnsZoneId')]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateEndpoints', format('pe-{0}', variables('accountName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "accountName": {
+      "type": "string",
+      "value": "[variables('accountName')]"
+    },
+    "accountId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+    },
+    "endpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('accountName')), '2024-10-01').endpoint]"
+    },
+    "chatDeploymentName": {
+      "type": "string",
+      "value": "[parameters('chatDeploymentName')]"
+    },
+    "embeddingDeploymentName": {
+      "type": "string",
+      "value": "[parameters('embeddingDeploymentName')]"
+    }
+  }
+}
