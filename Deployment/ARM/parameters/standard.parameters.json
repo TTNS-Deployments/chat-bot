@@ -1,0 +1,85 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "solutionPrefix": {
+      "value": "aibot"
+    },
+    "environmentName": {
+      "value": "test"
+    },
+    "location": {
+      "value": "centralindia"
+    },
+    "appServicePlanSku": {
+      "value": "P0v3"
+    },
+    "appServiceInstanceCount": {
+      "value": 1
+    },
+    "openAiLocation": {
+      "value": "eastus2"
+    },
+    "openAiSku": {
+      "value": "S0"
+    },
+    "chatModelName": {
+      "value": "gpt-4.1-mini"
+    },
+    "chatModelVersion": {
+      "value": "2025-04-14"
+    },
+    "chatDeploymentSku": {
+      "value": "GlobalStandard"
+    },
+    "chatCapacity": {
+      "value": 50
+    },
+    "embeddingModelName": {
+      "value": "text-embedding-3-small"
+    },
+    "embeddingModelVersion": {
+      "value": "1"
+    },
+    "embeddingDeploymentSku": {
+      "value": "GlobalStandard"
+    },
+    "embeddingCapacity": {
+      "value": 50
+    },
+    "searchSku": {
+      "value": "basic"
+    },
+    "searchReplicaCount": {
+      "value": 2
+    },
+    "searchPartitionCount": {
+      "value": 1
+    },
+    "semanticSearch": {
+      "value": "standard"
+    },
+    "storageSku": {
+      "value": "Standard_ZRS"
+    },
+    "keyVaultSku": {
+      "value": "standard"
+    },
+    "logAnalyticsRetentionDays": {
+      "value": 30
+    },
+    "logAnalyticsDailyQuotaGb": {
+      "value": 5
+    },
+    "allowDocumentUpload": {
+      "value": true
+    },
+    "tags": {
+      "value": {
+        "owner": "TTNS",
+        "project": "ai-based-chatbot",
+        "preset": "standard"
+      }
+    }
+  }
+}

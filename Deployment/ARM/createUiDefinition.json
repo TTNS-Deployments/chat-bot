@@ -1,0 +1,714 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "config": {
+      "isWizard": false,
+      "basics": {
+        "description": "**AI Based Chatbot** – AI based chatbot platform. Answers questions from your own documents with Azure OpenAI and Azure AI Search, and shows the sources it used. Choose the tier (SKU) of every service on the following tabs; the defaults match the `dev` preset."
+      }
+    },
+    "basics": [
+      {
+        "name": "solutionPrefix",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Solution prefix",
+        "defaultValue": "aibot",
+        "toolTip": "Lowercase letters and digits, 3-8 characters. Used in all resource names.",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-z0-9]{3,8}$",
+          "validationMessage": "3-8 lowercase letters or digits."
+        },
+        "visible": true
+      },
+      {
+        "name": "environmentName",
+        "type": "Microsoft.Common.DropDown",
+        "label": "Environment",
+        "defaultValue": "dev",
+        "toolTip": "Used in resource names and tags. It does not change any SKU.",
+        "constraints": {
+          "allowedValues": [
+            {
+              "label": "Development",
+              "value": "dev"
+            },
+            {
+              "label": "Test",
+              "value": "test"
+            },
+            {
+              "label": "UAT",
+              "value": "uat"
+            },
+            {
+              "label": "Production",
+              "value": "prod"
+            }
+          ],
+          "required": true
+        },
+        "visible": true
+      }
+    ],
+    "steps": [
+      {
+        "name": "ai",
+        "label": "Azure OpenAI",
+        "elements": [
+          {
+            "name": "quota",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "icon": "Warning",
+              "text": "Your subscription needs Azure OpenAI quota for both models and deployment types in the selected region. Check Azure AI Foundry → Quotas before deploying.",
+              "uri": "https://learn.microsoft.com/azure/ai-services/openai/quotas-limits"
+            }
+          },
+          {
+            "name": "openAiLocation",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Azure OpenAI region",
+            "defaultValue": "eastus2",
+            "toolTip": "Must offer both models with the chosen deployment types. All other resources use the resource group region.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Central India",
+                  "value": "centralindia"
+                },
+                {
+                  "label": "South India",
+                  "value": "southindia"
+                },
+                {
+                  "label": "East US",
+                  "value": "eastus"
+                },
+                {
+                  "label": "East US 2",
+                  "value": "eastus2"
+                },
+                {
+                  "label": "Sweden Central",
+                  "value": "swedencentral"
+                },
+                {
+                  "label": "West Europe",
+                  "value": "westeurope"
+                },
+                {
+                  "label": "UK South",
+                  "value": "uksouth"
+                },
+                {
+                  "label": "Japan East",
+                  "value": "japaneast"
+                },
+                {
+                  "label": "Australia East",
+                  "value": "australiaeast"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "chat",
+            "type": "Microsoft.Common.Section",
+            "label": "Chat model",
+            "visible": true,
+            "elements": [
+              {
+                "name": "chatModelName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Model",
+                "defaultValue": "gpt-4.1-mini",
+                "toolTip": "Chat model that writes the answers.",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-z0-9][a-z0-9.-]{1,63}$",
+                  "validationMessage": "Lowercase model name, for example gpt-4.1-mini."
+                },
+                "visible": true
+              },
+              {
+                "name": "chatModelVersion",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Model version",
+                "defaultValue": "2025-04-14",
+                "toolTip": "Must be a version offered in the Azure OpenAI region (az cognitiveservices model list -l <region> -o table).",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[0-9][0-9A-Za-z.-]{0,31}$",
+                  "validationMessage": "A model version, for example 2025-04-14."
+                },
+                "visible": true
+              },
+              {
+                "name": "chatDeploymentSku",
+                "type": "Microsoft.Common.DropDown",
+                "label": "Deployment type",
+                "defaultValue": "GlobalStandard",
+                "toolTip": "Standard keeps processing in the selected region. Global Standard has the widest availability and highest default quota.",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Global Standard",
+                      "value": "GlobalStandard"
+                    },
+                    {
+                      "label": "Data Zone Standard",
+                      "value": "DataZoneStandard"
+                    },
+                    {
+                      "label": "Standard (regional)",
+                      "value": "Standard"
+                    }
+                  ],
+                  "required": true
+                },
+                "visible": true
+              },
+              {
+                "name": "chatCapacity",
+                "type": "Microsoft.Common.Slider",
+                "label": "Capacity",
+                "min": 1,
+                "max": 1000,
+                "defaultValue": 30,
+                "showStepMarkers": false,
+                "subLabel": "thousand tokens per minute",
+                "toolTip": "Roughly 3-4k tokens per question with five sources.",
+                "constraints": {
+                  "required": true
+                },
+                "visible": true
+              }
+            ]
+          },
+          {
+            "name": "embedding",
+            "type": "Microsoft.Common.Section",
+            "label": "Embedding model",
+            "visible": true,
+            "elements": [
+              {
+                "name": "embeddingModelName",
+                "type": "Microsoft.Common.DropDown",
+                "label": "Model",
+                "defaultValue": "text-embedding-3-small",
+                "toolTip": "Changing the model later means rebuilding the search index.",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "text-embedding-3-small (1536 dimensions)",
+                      "value": "text-embedding-3-small"
+                    },
+                    {
+                      "label": "text-embedding-3-large (3072 dimensions)",
+                      "value": "text-embedding-3-large"
+                    }
+                  ],
+                  "required": true
+                },
+                "visible": true
+              },
+              {
+                "name": "embeddingModelVersion",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Model version",
+                "defaultValue": "1",
+                "toolTip": "Version 1 for the text-embedding-3 models.",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[0-9][0-9A-Za-z.-]{0,31}$",
+                  "validationMessage": "A model version, for example 1."
+                },
+                "visible": true
+              },
+              {
+                "name": "embeddingDeploymentSku",
+                "type": "Microsoft.Common.DropDown",
+                "label": "Deployment type",
+                "defaultValue": "GlobalStandard",
+                "toolTip": "Standard keeps processing in the selected region. Global Standard has the widest availability and highest default quota.",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Global Standard",
+                      "value": "GlobalStandard"
+                    },
+                    {
+                      "label": "Data Zone Standard",
+                      "value": "DataZoneStandard"
+                    },
+                    {
+                      "label": "Standard (regional)",
+                      "value": "Standard"
+                    }
+                  ],
+                  "required": true
+                },
+                "visible": true
+              },
+              {
+                "name": "embeddingCapacity",
+                "type": "Microsoft.Common.Slider",
+                "label": "Capacity",
+                "min": 1,
+                "max": 1000,
+                "defaultValue": 30,
+                "showStepMarkers": false,
+                "subLabel": "thousand tokens per minute",
+                "toolTip": "Limits how fast documents are indexed.",
+                "constraints": {
+                  "required": true
+                },
+                "visible": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "search",
+        "label": "Azure AI Search",
+        "elements": [
+          {
+            "name": "searchSku",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Search tier",
+            "defaultValue": "basic",
+            "toolTip": "Basic suits most document sets up to a few GB. Standard tiers add storage and scale.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Basic",
+                  "value": "basic"
+                },
+                {
+                  "label": "Standard (S1)",
+                  "value": "standard"
+                },
+                {
+                  "label": "Standard S2",
+                  "value": "standard2"
+                },
+                {
+                  "label": "Standard S3",
+                  "value": "standard3"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "replicasBasic",
+            "type": "Microsoft.Common.Slider",
+            "label": "Replicas",
+            "min": 1,
+            "max": 3,
+            "defaultValue": 1,
+            "showStepMarkers": false,
+            "subLabel": "replicas",
+            "toolTip": "Query throughput and availability. Two or more replicas give the read SLA.",
+            "constraints": {
+              "required": true
+            },
+            "visible": "[equals(steps('search').searchSku, 'basic')]"
+          },
+          {
+            "name": "replicasStandard",
+            "type": "Microsoft.Common.Slider",
+            "label": "Replicas",
+            "min": 1,
+            "max": 12,
+            "defaultValue": 1,
+            "showStepMarkers": false,
+            "subLabel": "replicas",
+            "toolTip": "Query throughput and availability. Two or more replicas give the read SLA. Replicas × partitions must not exceed 36.",
+            "constraints": {
+              "required": true
+            },
+            "visible": "[not(equals(steps('search').searchSku, 'basic'))]"
+          },
+          {
+            "name": "partitionsBasic",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Partitions",
+            "defaultValue": 1,
+            "toolTip": "Index storage. Basic allows up to 3.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "1",
+                  "value": 1
+                },
+                {
+                  "label": "2",
+                  "value": 2
+                },
+                {
+                  "label": "3",
+                  "value": 3
+                }
+              ],
+              "required": true
+            },
+            "visible": "[equals(steps('search').searchSku, 'basic')]"
+          },
+          {
+            "name": "partitionsStandard",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Partitions",
+            "defaultValue": 1,
+            "toolTip": "Index storage.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "1",
+                  "value": 1
+                },
+                {
+                  "label": "2",
+                  "value": 2
+                },
+                {
+                  "label": "3",
+                  "value": 3
+                },
+                {
+                  "label": "4",
+                  "value": 4
+                },
+                {
+                  "label": "6",
+                  "value": 6
+                },
+                {
+                  "label": "12",
+                  "value": 12
+                }
+              ],
+              "required": true
+            },
+            "visible": "[not(equals(steps('search').searchSku, 'basic'))]"
+          },
+          {
+            "name": "scaleLimit",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[and(not(equals(steps('search').searchSku, 'basic')), greater(mul(steps('search').replicasStandard, steps('search').partitionsStandard), 36))]",
+            "options": {
+              "icon": "Error",
+              "text": "Replicas × partitions is above 36, which Azure AI Search does not allow. Lower one of them."
+            }
+          },
+          {
+            "name": "semanticSearch",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Semantic ranker",
+            "defaultValue": "free",
+            "toolTip": "Reranks hybrid search results for better grounding.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Free (1,000 queries a month)",
+                  "value": "free"
+                },
+                {
+                  "label": "Standard (pay per 1,000 queries)",
+                  "value": "standard"
+                },
+                {
+                  "label": "Disabled",
+                  "value": "disabled"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          }
+        ]
+      },
+      {
+        "name": "hosting",
+        "label": "Hosting and data",
+        "elements": [
+          {
+            "name": "appServicePlanSku",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Web app plan",
+            "defaultValue": "B1",
+            "toolTip": "Linux App Service plan size.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "B1",
+                  "value": "B1"
+                },
+                {
+                  "label": "B2",
+                  "value": "B2"
+                },
+                {
+                  "label": "B3",
+                  "value": "B3"
+                },
+                {
+                  "label": "S1",
+                  "value": "S1"
+                },
+                {
+                  "label": "S2",
+                  "value": "S2"
+                },
+                {
+                  "label": "S3",
+                  "value": "S3"
+                },
+                {
+                  "label": "P0v3",
+                  "value": "P0v3"
+                },
+                {
+                  "label": "P1v3",
+                  "value": "P1v3"
+                },
+                {
+                  "label": "P2v3",
+                  "value": "P2v3"
+                },
+                {
+                  "label": "P3v3",
+                  "value": "P3v3"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "appServiceInstanceCount",
+            "type": "Microsoft.Common.Slider",
+            "label": "Web app instances",
+            "min": 1,
+            "max": 10,
+            "defaultValue": 1,
+            "showStepMarkers": false,
+            "subLabel": "instances",
+            "toolTip": "Two or more instances for the App Service SLA and more concurrent users.",
+            "constraints": {
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "storageSku",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Storage redundancy",
+            "defaultValue": "Standard_LRS",
+            "toolTip": "Redundancy of the source documents. LRS is enough for development.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Locally redundant (LRS)",
+                  "value": "Standard_LRS"
+                },
+                {
+                  "label": "Zone redundant (ZRS)",
+                  "value": "Standard_ZRS"
+                },
+                {
+                  "label": "Geo redundant (GRS)",
+                  "value": "Standard_GRS"
+                },
+                {
+                  "label": "Read-access geo redundant (RA-GRS)",
+                  "value": "Standard_RAGRS"
+                },
+                {
+                  "label": "Geo-zone redundant (GZRS)",
+                  "value": "Standard_GZRS"
+                },
+                {
+                  "label": "Read-access geo-zone redundant (RA-GZRS)",
+                  "value": "Standard_RAGZRS"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "keyVaultSku",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Key Vault tier",
+            "defaultValue": "standard",
+            "toolTip": "Standard is enough: the vault holds one secret (the upload key).",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Standard",
+                  "value": "standard"
+                },
+                {
+                  "label": "Premium (HSM-backed keys)",
+                  "value": "premium"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "logAnalyticsRetentionDays",
+            "type": "Microsoft.Common.Slider",
+            "label": "Log retention",
+            "min": 30,
+            "max": 730,
+            "defaultValue": 30,
+            "showStepMarkers": false,
+            "subLabel": "days",
+            "toolTip": "How long logs are kept. Longer retention costs more.",
+            "constraints": {
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "logAnalyticsDailyQuotaGb",
+            "type": "Microsoft.Common.Slider",
+            "label": "Daily log cap",
+            "min": -1,
+            "max": 100,
+            "defaultValue": 1,
+            "showStepMarkers": false,
+            "subLabel": "GB per day (-1 = no cap)",
+            "toolTip": "Logs stop for the rest of the day when the cap is reached. -1 means no cap.",
+            "constraints": {
+              "required": true
+            },
+            "visible": true
+          }
+        ]
+      },
+      {
+        "name": "app",
+        "label": "Application",
+        "elements": [
+          {
+            "name": "deployAppCode",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Deploy the application code",
+            "defaultValue": "Yes",
+            "toolTip": "Yes: the web app pulls and builds the code from the Git repository below during deployment. No: deploy the code later with Deployment/scripts/deploy.sh --skip-infra.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Yes",
+                  "value": true
+                },
+                {
+                  "label": "No",
+                  "value": false
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "repositoryUrl",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Repository URL",
+            "defaultValue": "https://github.com/TTNS-Deployments/chat-bot",
+            "toolTip": "Public Git repository with the application code.",
+            "constraints": {
+              "required": true,
+              "regex": "^https://[^\\s]{1,200}$",
+              "validationMessage": "Enter an https URL (up to 200 characters)."
+            },
+            "visible": true
+          },
+          {
+            "name": "repositoryBranch",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Branch",
+            "defaultValue": "main",
+            "toolTip": "Branch that App Service builds when 'Deploy the application code' is Yes.",
+            "constraints": {
+              "required": true,
+              "regex": "^[A-Za-z0-9._/-]{1,100}$",
+              "validationMessage": "A branch name, for example main."
+            },
+            "visible": true
+          },
+          {
+            "name": "allowDocumentUpload",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Document upload from the chat page",
+            "defaultValue": "Enabled",
+            "toolTip": "Uploads always need the upload key, which is stored in Key Vault as upload-api-key.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Enabled",
+                  "value": true
+                },
+                {
+                  "label": "Disabled",
+                  "value": false
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "uploadKey",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "icon": "Info",
+              "text": "A new upload key is generated on every deployment and stored in Key Vault (secret upload-api-key). Read it there after the deployment to add documents."
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "solutionPrefix": "[basics('solutionPrefix')]",
+      "environmentName": "[basics('environmentName')]",
+      "location": "[location()]",
+      "openAiLocation": "[steps('ai').openAiLocation]",
+      "chatModelName": "[steps('ai').chat.chatModelName]",
+      "chatModelVersion": "[steps('ai').chat.chatModelVersion]",
+      "chatDeploymentSku": "[steps('ai').chat.chatDeploymentSku]",
+      "chatCapacity": "[steps('ai').chat.chatCapacity]",
+      "embeddingModelName": "[steps('ai').embedding.embeddingModelName]",
+      "embeddingModelVersion": "[steps('ai').embedding.embeddingModelVersion]",
+      "embeddingDeploymentSku": "[steps('ai').embedding.embeddingDeploymentSku]",
+      "embeddingCapacity": "[steps('ai').embedding.embeddingCapacity]",
+      "searchSku": "[steps('search').searchSku]",
+      "searchReplicaCount": "[if(equals(steps('search').searchSku, 'basic'), steps('search').replicasBasic, steps('search').replicasStandard)]",
+      "searchPartitionCount": "[if(equals(steps('search').searchSku, 'basic'), steps('search').partitionsBasic, steps('search').partitionsStandard)]",
+      "semanticSearch": "[steps('search').semanticSearch]",
+      "appServicePlanSku": "[steps('hosting').appServicePlanSku]",
+      "appServiceInstanceCount": "[steps('hosting').appServiceInstanceCount]",
+      "storageSku": "[steps('hosting').storageSku]",
+      "keyVaultSku": "[steps('hosting').keyVaultSku]",
+      "logAnalyticsRetentionDays": "[steps('hosting').logAnalyticsRetentionDays]",
+      "logAnalyticsDailyQuotaGb": "[steps('hosting').logAnalyticsDailyQuotaGb]",
+      "deployAppCode": "[steps('app').deployAppCode]",
+      "repositoryUrl": "[steps('app').repositoryUrl]",
+      "repositoryBranch": "[steps('app').repositoryBranch]",
+      "allowDocumentUpload": "[steps('app').allowDocumentUpload]"
+    }
+  }
+}
