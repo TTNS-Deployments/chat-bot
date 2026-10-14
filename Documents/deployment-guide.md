@@ -81,7 +81,7 @@ The portal gives its deployment another name (for example `Microsoft.Template-â€
 
 ## 3. After deployment
 
-1. **Health:** open `https://<web app>/healthz`. Expect `"status": "ok"` and `"searchSetup": "ready"`. `pending` means the app is still waiting for role assignments (allow up to 10 minutes). `failed` includes the reason.
+1. **Health:** open `https://<web app>/healthz`. Expect `"status": "ok"` and `"searchSetup": "ready"`. `pending` means the app is still setting up; it retries for about 5 minutes. `failed` includes the reason; usually the role assignments were not active yet, so wait a few minutes and restart the web app.
 2. **Upload key:** `az keyvault secret show --vault-name <key vault> -n upload-api-key --query value -o tsv`. You need Key Vault Secrets User or Officer on the vault; the scripts grant it to the deploying identity. Portal deployments: assign yourself *Key Vault Secrets User* on the vault first.
 3. **Add documents:** use **Documents** on the chat page (paste the upload key), or run `Deployment/scripts/ingest.sh -g <rg> ./my-docs` (it uses the latest chatbot deployment in the group; `-n` picks another). The indexer status and per-file errors appear in the Documents dialog.
 4. **Smoke test:** after `--seed`, ask "What does the warranty cover?". The answer should cite `warranty-policy.md`.

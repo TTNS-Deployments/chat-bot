@@ -150,7 +150,7 @@ Every tier and size lives in a **SKU file** in [`Deployment/ARM/parameters/`](De
 |---|---|---|
 | [`dev`](Deployment/ARM/parameters/dev.parameters.json) | Trials and development | App Service B1, AI Search basic with 1 replica, free semantic ranker, 30K TPM per model, LRS storage |
 | [`standard`](Deployment/ARM/parameters/standard.parameters.json) | A small production workload | App Service P0v3, AI Search basic with 2 replicas (read SLA), standard semantic ranker, 50K TPM, ZRS storage |
-| [`prod`](Deployment/ARM/parameters/prod.parameters.json) | Larger document sets and traffic | App Service P1v3 x2, AI Search S1 with 2 replicas, `text-embedding-3-large`, 150K/120K TPM, Data Zone processing, 90-day logs |
+| [`prod`](Deployment/ARM/parameters/prod.parameters.json) | Larger document sets and traffic | App Service P1v3 x2, AI Search S1 with 2 replicas, `text-embedding-3-large`, 150K/120K TPM, chat processed within the Data Zone (embeddings stay in the region), 90-day logs |
 
 What each field controls:
 
@@ -203,7 +203,7 @@ Click the button at the top. The portal wizard asks for:
 | Hosting and data | App Service plan and instances; storage redundancy; Key Vault tier; log retention and daily cap |
 | Application | Deploy the application code (default **Yes**: App Service pulls and builds this repository's `main` branch); repository URL and branch; document upload on/off |
 
-It deploys: Log Analytics, Application Insights, a storage account with the `documents` container, Key Vault with a generated upload key, Azure OpenAI with two model deployments, AI Search, an App Service plan and web app, all role assignments, and (by default) the application code. It takes 10-20 minutes. Then follow [post-deployment steps](#post-deployment-steps-and-document-ingestion).
+It deploys: Log Analytics, Application Insights, a storage account with the `documents` container, Key Vault with a generated upload key, Azure OpenAI with two model deployments, AI Search, an App Service plan and web app, all role assignments, and (by default) the application code. Then follow [post-deployment steps](#post-deployment-steps-and-document-ingestion).
 
 ### 2. Script (bash)
 
@@ -230,7 +230,7 @@ Both scripts validate the SKUs, create the resource group, deploy the template, 
 
 ## Post-deployment steps and document ingestion
 
-1. **Check health:** open `https://<web app>/healthz`. Expect `"status": "ok"` and `"searchSetup": "ready"` (the web app creates the search index, data source, skillset and indexer on startup; allow up to 10 minutes after a first deployment for role assignments to apply).
+1. **Check health:** open `https://<web app>/healthz`. Expect `"status": "ok"` and `"searchSetup": "ready"`. The web app creates the search index, data source, skillset and indexer on startup. While it shows `"pending"`, wait a few minutes. It retries for about 5 minutes and then shows `"failed"`; usually the role assignments were not active yet, so wait a few minutes and restart the web app.
 2. **Get the upload key:**
    ```bash
    az keyvault secret show --vault-name <key-vault> -n upload-api-key --query value -o tsv
@@ -241,7 +241,7 @@ Both scripts validate the SKUs, create the resource group, deploy the template, 
    - **Script** (bulk, folders): `Deployment/scripts/ingest.sh -g <rg> ./my-docs ./faq.pdf` or `./Deployment/scripts/ingest.ps1 -ResourceGroup <rg> -Path ./my-docs`.
    - **Anything that writes to Blob Storage** (Storage Explorer, AzCopy, a pipeline) into the `documents` container; the indexer picks files up within 30 minutes.
 4. **Wait a few minutes**, then ask a question that your documents answer.
-5. Delete the sample documents if you loaded them (`--seed`): Documents dialog or `DELETE /api/documents/<name>`.
+5. Delete the sample documents if you loaded them (`--seed`): remove them from the `documents` container (portal or Storage Explorer), or call `DELETE /api/documents/<name>` with the `X-Upload-Key` header. The chat page has no delete button. The indexer removes deleted files from the index on its next run.
 
 Full steps and troubleshooting: [Deployment guide](Documents/deployment-guide.md).
 
@@ -299,7 +299,7 @@ az cognitiveservices account purge --name <openai-account-name> --resource-group
 | `InsufficientQuota` during deployment | Lower `chatCapacity`/`embeddingCapacity`, use another deployment type or region, or request quota. |
 | `AuthorizationFailed` on role assignments | You need Owner, or Contributor + User Access Administrator, on the resource group. |
 | Name already exists / soft-deleted vault or account | Purge it (see [Clean-up](#clean-up)). |
-| `/healthz` shows `"searchSetup": "pending"` for more than 10 minutes, or `"failed"` | Restart the web app; role assignments may not have applied yet. `searchSetupDetail` gives the reason. |
+| `/healthz` shows `"searchSetup": "failed"` | Role assignments were probably not active yet. Wait a few minutes and restart the web app. `searchSetupDetail` gives the reason. |
 | Upload says the key is not available yet | The Key Vault reference has not resolved; restart the web app after a few minutes. |
 | "The service could not answer right now" | Application Insights → Failures shows the cause (deployment name, permission, retired model). |
 | "Too many questions in a short time" | Per-IP rate limit; raise `RATE_LIMIT_PER_MINUTE` if users share one IP. |
