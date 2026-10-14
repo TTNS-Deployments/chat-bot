@@ -1,0 +1,3 @@
+# Used by App Service when it builds the app (zip deploy and Git deploy). Keep the web app's
+# dependencies in Code/backend/requirements.txt.
+-r Code/backend/requirements.txt

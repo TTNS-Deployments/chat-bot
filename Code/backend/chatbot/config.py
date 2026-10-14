@@ -1,0 +1,139 @@
+"""Settings, read from environment variables.
+
+App Service gets them from the ARM template (app settings). Locally, copy .env.example to .env.
+Nothing here is a secret except UPLOAD_API_KEY, which App Service resolves from Key Vault.
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+
+PACKAGE_DIR = Path(__file__).resolve().parent
+
+
+# The deployed package keeps the repository layout (Code/backend/chatbot, Code/frontend, Data/).
+REPO_ROOT = PACKAGE_DIR.parents[2]
+FRONTEND_DIR = PACKAGE_DIR.parents[1] / "frontend"
+SAMPLE_DOCS_DIR = REPO_ROOT / "Data" / "sample_docs"
+
+ALLOWED_EXTENSIONS = (".pdf", ".docx", ".pptx", ".xlsx", ".txt", ".md", ".html", ".htm", ".csv", ".json")
+
+
+def _bool(value: str | None, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _int(value: str | None, default: int) -> int:
+    try:
+        return int(value) if value not in (None, "") else default
+    except ValueError:
+        return default
+
+
+def _float(value: str | None, default: float | None) -> float | None:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+@dataclass(frozen=True)
+class Settings:
+    mode: str = "local"  # local | azure
+
+    openai_endpoint: str = ""
+    openai_api_version: str = "2024-10-21"
+    chat_deployment: str = "chat"
+    chat_temperature: float | None = 0.2
+    chat_max_tokens: int = 800
+    embedding_deployment: str = "embedding"
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimensions: int = 1536
+
+    search_endpoint: str = ""
+    search_index: str = "documents-index"
+    search_semantic_config: str = ""
+    search_api_version: str = "2024-07-01"
+    search_top_k: int = 5
+
+    storage_account_url: str = ""
+    storage_container: str = "documents"
+    storage_resource_id: str = ""
+
+    allow_document_upload: bool = True
+    upload_api_key: str = field(default="", repr=False)
+    max_upload_mb: int = 16
+
+    max_history_turns: int = 6
+    max_source_chars: int = 12000
+    rate_limit_per_minute: int = 20
+    azure_client_id: str = ""
+    local_data_dir: Path = REPO_ROOT / ".localdata"
+
+    @property
+    def is_azure(self) -> bool:
+        return self.mode == "azure"
+
+    @property
+    def search_datasource(self) -> str:
+        return f"{self.search_index}-datasource"
+
+    @property
+    def search_skillset(self) -> str:
+        return f"{self.search_index}-skillset"
+
+    @property
+    def search_indexer(self) -> str:
+        return f"{self.search_index}-indexer"
+
+    def missing_azure_settings(self) -> list[str]:
+        required = {
+            "AZURE_OPENAI_ENDPOINT": self.openai_endpoint,
+            "AZURE_SEARCH_ENDPOINT": self.search_endpoint,
+            "AZURE_STORAGE_ACCOUNT_URL": self.storage_account_url,
+            "AZURE_STORAGE_RESOURCE_ID": self.storage_resource_id,
+        }
+        return [name for name, value in required.items() if not value]
+
+
+def settings_from_env(env: dict[str, str] | None = None) -> Settings:
+    e = os.environ if env is None else env
+    mode = (e.get("CHATBOT_MODE") or ("azure" if e.get("AZURE_OPENAI_ENDPOINT") else "local")).lower()
+    return Settings(
+        mode=mode if mode in ("local", "azure") else "local",
+        openai_endpoint=e.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/"),
+        openai_api_version=e.get("AZURE_OPENAI_API_VERSION") or Settings.openai_api_version,
+        chat_deployment=e.get("AZURE_OPENAI_CHAT_DEPLOYMENT") or Settings.chat_deployment,
+        chat_temperature=_float(e.get("CHAT_TEMPERATURE"), Settings.chat_temperature),
+        chat_max_tokens=_int(e.get("CHAT_MAX_TOKENS"), Settings.chat_max_tokens),
+        embedding_deployment=e.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT") or Settings.embedding_deployment,
+        embedding_model=e.get("AZURE_OPENAI_EMBEDDING_MODEL") or Settings.embedding_model,
+        embedding_dimensions=_int(e.get("AZURE_OPENAI_EMBEDDING_DIMENSIONS"), Settings.embedding_dimensions),
+        search_endpoint=e.get("AZURE_SEARCH_ENDPOINT", "").rstrip("/"),
+        search_index=e.get("AZURE_SEARCH_INDEX") or Settings.search_index,
+        search_semantic_config=e.get("AZURE_SEARCH_SEMANTIC_CONFIG", ""),
+        search_api_version=e.get("AZURE_SEARCH_API_VERSION") or Settings.search_api_version,
+        search_top_k=max(1, min(_int(e.get("SEARCH_TOP_K"), Settings.search_top_k), 20)),
+        storage_account_url=e.get("AZURE_STORAGE_ACCOUNT_URL", ""),
+        storage_container=e.get("AZURE_STORAGE_CONTAINER") or Settings.storage_container,
+        storage_resource_id=e.get("AZURE_STORAGE_RESOURCE_ID", ""),
+        allow_document_upload=_bool(e.get("ALLOW_DOCUMENT_UPLOAD"), True),
+        upload_api_key=e.get("UPLOAD_API_KEY", ""),
+        max_upload_mb=_int(e.get("MAX_UPLOAD_MB"), Settings.max_upload_mb),
+        max_history_turns=_int(e.get("MAX_HISTORY_TURNS"), Settings.max_history_turns),
+        max_source_chars=_int(e.get("MAX_SOURCE_CHARS"), Settings.max_source_chars),
+        rate_limit_per_minute=_int(e.get("RATE_LIMIT_PER_MINUTE"), Settings.rate_limit_per_minute),
+        azure_client_id=e.get("AZURE_CLIENT_ID", ""),
+        local_data_dir=Path(e.get("LOCAL_DATA_DIR") or Settings.local_data_dir),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return settings_from_env()

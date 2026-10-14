@@ -1,0 +1,3 @@
+# Everything needed to run, test and develop locally:  pip install -r requirements-dev.txt
+-r Code/backend/requirements.txt
+pytest>=8.0
