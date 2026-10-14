@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Keeps the Deploy to Azure button from pointing at a stale template: when a commit touches the
+# Bicep source or the ARM template, azuredeploy.json must match a fresh build of main.bicep.
+# Enable with:  make hooks   (or: git config core.hooksPath .githooks)
+set -euo pipefail
+
+if git diff --cached --name-only | grep -qE '^Deployment/(bicep/|ARM/azuredeploy\.json)'; then
+  if ! command -v az >/dev/null; then
+    echo "pre-commit: Azure CLI not found, cannot check Deployment/ARM/azuredeploy.json against the Bicep source." >&2
+    exit 1
+  fi
+  if ! Deployment/scripts/build_arm.sh --check; then
+    Deployment/scripts/build_arm.sh
+    echo "pre-commit: azuredeploy.json was rebuilt. Review it, 'git add Deployment/ARM/azuredeploy.json' and commit again." >&2
+    exit 1
+  fi
+  if ! git diff --quiet -- Deployment/ARM/azuredeploy.json; then
+    echo "pre-commit: Deployment/ARM/azuredeploy.json has unstaged changes. Stage it so the commit includes the built template." >&2
+    exit 1
+  fi
+fi

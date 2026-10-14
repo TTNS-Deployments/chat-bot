@@ -1,69 +1,116 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 580" role="img" aria-labelledby="t d" font-family="'Segoe UI', Helvetica, Arial, sans-serif" xmlns:c2pa="http://c2pa.org/manifest"><metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTpjNTc1NWIwYi01YjhiLTQ5ZmUtYTRhNS00OGUzZDRiYThlM2IAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaF7AFY4Uc01w0PVnbIJsYGgAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDoxMjYyZjBhYy1jNzQ2LTQwMzUtYWM1My03MWZhNjU1NjBmNmFscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoiXgsmJZ7veDEfB1QYYuCXgAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggyJrBUG+IfFuW7YkZZ4IkEAbm5LrfIaXB6n9bMb1frsWkZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaMHUm780rFbe4/85/Q6BGq0AAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRNAAAAAAAAAAAAAAAAAGRoYXNoWCBUz0uOq6Gw8kqLRXQlPzgTA482NELtREBZJWUori6kvmRuYW1lbmp1bWJmIG1hbmlmZXN0amV4Y2x1c2lvbnOBomVzdGFydBjVZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOmM1NzU1YjBiLTViOGItNDlmZS1hNGE1LTQ4ZTNkNGJhOGUzYi9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOmM1NzcwZTY1LTA2M2ItNDczMi05MGY3LTExODgwNDZmMDZkMnJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCDImsFQb4h8W5btiRlngiQQBubkut8hpcHqf1sxvV+uxaJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFggLmcw6J5raMjd4bhGytK2BJHitp+eGFd2/2MRgpNDj2WiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFgg/p8GeoO6+yaJlOdsV2hkpiRP8leQkttJPH9IX3CcRZV0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQETM1h0/EClZjeP6hvXpxOSL/Kcxfi3/SMqvizRFPY5caJlDFij1nlVmCQPkI41luFUvahbVc6vUBZ09u6RQB/o=</c2pa:manifest></metadata>
-  <title id="t">RAG chatbot architecture</title>
-  <desc id="d">Customers reach Application Gateway in the hub VNet. It forwards to the App Service in the spoke VNet through a private endpoint. The app reaches Azure AI Search, Cosmos DB, Blob Storage, Key Vault and Azure OpenAI only through private endpoints.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="t d" font-family="'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">AI Based Chatbot architecture</title>
+  <desc id="d">Users open the chat page on App Service. The web app searches Azure AI Search with hybrid and semantic ranking, sends the question and the sources to Azure OpenAI, and returns the answer with citations. Uploaded documents go to Blob Storage; the AI Search indexer splits and embeds them with the Azure OpenAI embedding model. Key Vault holds the upload key. Application Insights and Log Analytics collect telemetry. All service-to-service calls use managed identities.</desc>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1F4E8C"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0B7A6E"/></marker>
+    <style>
+      .box { fill: #FFFFFF; stroke: #9DB3CB; stroke-width: 1.5; }
+      .az { fill: #EEF4FC; stroke: #1F5FBF; stroke-width: 1.5; }
+      .h { font-size: 15px; font-weight: 600; fill: #14202E; }
+      .s { font-size: 12.5px; fill: #4A5B6D; }
+      .flow { stroke: #1F4E8C; stroke-width: 2; fill: none; marker-end: url(#a); }
+      .ingest { stroke: #0B7A6E; stroke-width: 2; fill: none; marker-end: url(#g); }
+      .mon { stroke: #8A9AAC; stroke-width: 1.3; stroke-dasharray: 5 4; fill: none; }
+      .num { fill: #1F4E8C; }
+      .numg { fill: #0B7A6E; }
+      .nt { font-size: 12px; font-weight: 700; fill: #FFFFFF; text-anchor: middle; }
+      .lbl { font-size: 12px; fill: #1F4E8C; }
+      .lblg { font-size: 12px; fill: #0B7A6E; }
+    </style>
   </defs>
-  <rect width="980" height="580" fill="#FFFFFF"/>
+  
+  <rect width="1000" height="600" fill="#F7F9FC"/>
+  <rect x="176" y="20" width="620" height="530" rx="14" fill="none" stroke="#C9D5E3" stroke-dasharray="6 5"/>
+  <text x="192" y="42" class="s">Resource group · SKUs from Deployment/ARM/parameters/&lt;env&gt;.parameters.json</text>
 
-  <rect x="30" y="20" width="190" height="46" rx="23" fill="#EAF1F9" stroke="#1F4E8C" stroke-width="1.5"/>
-  <text x="125" y="48" font-size="15" font-weight="600" fill="#14202E" text-anchor="middle">Customers (internet)</text>
+  <!-- User -->
+  <rect x="16" y="226" width="136" height="92" rx="12" class="box"/>
+  <text x="84" y="258" class="h" text-anchor="middle">Users</text>
+  <text x="84" y="279" class="s" text-anchor="middle">Browser:</text>
+  <text x="84" y="296" class="s" text-anchor="middle">chat page</text>
 
-  <rect x="20" y="100" width="250" height="190" rx="10" fill="#F4F8FC" stroke="#9DB8D6" stroke-dasharray="6 5"/>
-  <text x="36" y="124" font-size="15" font-weight="600" fill="#1F4E8C">Hub VNet</text>
-  <rect x="45" y="150" width="200" height="66" rx="8" fill="#FFFFFF" stroke="#1F4E8C" stroke-width="1.5"/>
-  <text x="145" y="178" font-size="15" font-weight="600" fill="#14202E" text-anchor="middle">Application Gateway</text>
-  <text x="145" y="198" font-size="12.5" fill="#4A5B6D" text-anchor="middle">Standard v2, only public endpoint</text>
+  <!-- App Service -->
+  <rect x="200" y="196" width="290" height="156" rx="12" class="az"/>
+  <text x="216" y="224" class="h">App Service (Linux)</text>
+  <text x="216" y="246" class="s">Chat page + API (FastAPI, Python 3.12)</text>
+  <text x="216" y="265" class="s">/api/chat · /api/documents · /healthz</text>
+  <text x="216" y="284" class="s">Creates the search index on startup</text>
+  <text x="216" y="303" class="s">Rate limit · validation · CSP</text>
+  <text x="216" y="334" class="s" font-style="italic">System-assigned managed identity</text>
 
-  <rect x="300" y="100" width="650" height="440" rx="10" fill="#F4F8FC" stroke="#9DB8D6" stroke-dasharray="6 5"/>
-  <text x="316" y="124" font-size="15" font-weight="600" fill="#1F4E8C">Spoke VNet</text>
-  <rect x="330" y="150" width="190" height="66" rx="8" fill="#FFFFFF" stroke="#1F4E8C" stroke-width="1.5"/>
-  <text x="425" y="178" font-size="15" font-weight="600" fill="#14202E" text-anchor="middle">App Service</text>
-  <text x="425" y="198" font-size="12.5" fill="#4A5B6D" text-anchor="middle">identity + VNet integration</text>
+  <!-- Azure OpenAI -->
+  <rect x="548" y="64" width="232" height="104" rx="12" class="az"/>
+  <text x="564" y="92" class="h">Azure OpenAI</text>
+  <text x="564" y="114" class="s">chat deployment (answers)</text>
+  <text x="564" y="133" class="s">embedding deployment</text>
+  <text x="564" y="152" class="s">Entra ID only, keys disabled</text>
 
-  <rect x="570" y="136" width="360" height="388" rx="8" fill="#FFFFFF" stroke="#8CC7BE" stroke-dasharray="5 4"/>
-  <text x="586" y="158" font-size="13.5" font-weight="600" fill="#0E6F63">Private endpoints subnet</text>
+  <!-- AI Search -->
+  <rect x="548" y="214" width="232" height="126" rx="12" class="az"/>
+  <text x="564" y="242" class="h">Azure AI Search</text>
+  <text x="564" y="264" class="s">documents-index</text>
+  <text x="564" y="283" class="s">hybrid + semantic ranking</text>
+  <text x="564" y="302" class="s">indexer + skillset</text>
+  <text x="564" y="321" class="s">(split, embed) · managed identity</text>
 
-  <g stroke="#1F4E8C" stroke-width="1.5" fill="#FFFFFF">
-    <rect x="590" y="172" width="320" height="56" rx="8"/>
-    <rect x="590" y="242" width="320" height="56" rx="8"/>
-    <rect x="590" y="312" width="320" height="56" rx="8"/>
-    <rect x="590" y="382" width="320" height="56" rx="8"/>
-    <rect x="590" y="452" width="320" height="56" rx="8" stroke="#0E8A7D"/>
+  <!-- Storage -->
+  <rect x="548" y="400" width="232" height="84" rx="12" class="az"/>
+  <text x="564" y="428" class="h">Blob Storage</text>
+  <text x="564" y="450" class="s">documents container</text>
+  <text x="564" y="469" class="s">soft delete · shared keys off</text>
+
+  <!-- Key Vault -->
+  <rect x="200" y="414" width="290" height="70" rx="12" class="az"/>
+  <text x="216" y="442" class="h">Key Vault (RBAC)</text>
+  <text x="216" y="464" class="s">upload-api-key</text>
+
+  <!-- Monitoring -->
+  <rect x="824" y="64" width="160" height="420" rx="12" class="box"/>
+  <text x="904" y="96" class="h" text-anchor="middle">Monitoring</text>
+  <text x="904" y="250" class="s" text-anchor="middle">Application</text>
+  <text x="904" y="267" class="s" text-anchor="middle">Insights</text>
+  <text x="904" y="300" class="s" text-anchor="middle">Log Analytics</text>
+  <text x="904" y="317" class="s" text-anchor="middle">workspace</text>
+
+  <!-- 1 question, 5 answer -->
+  <path d="M152 258 H196" class="flow"/>
+  <circle cx="176" cy="244" r="10" class="num"/><text x="176" y="248" class="nt">1</text>
+  <path d="M200 300 H156" class="flow"/>
+  <circle cx="176" cy="314" r="10" class="num"/><text x="176" y="318" class="nt">5</text>
+  <!-- 2 search -->
+  <path d="M490 252 H544" class="flow"/>
+  <circle cx="518" cy="238" r="10" class="num"/><text x="518" y="242" class="nt">2</text>
+  <!-- 3 vectorize the query -->
+  <path d="M610 214 V172" class="flow"/>
+  <circle cx="626" cy="194" r="10" class="num"/><text x="626" y="198" class="nt">3</text>
+  <!-- 4 grounded prompt -->
+  <path d="M440 196 V116 H544" class="flow"/>
+  <circle cx="440" cy="156" r="10" class="num"/><text x="440" y="160" class="nt">4</text>
+  <text x="300" y="108" class="lbl">question + sources</text>
+
+  <!-- A upload, B indexer reads, C embed chunks -->
+  <path d="M460 352 V442 H544" class="ingest"/>
+  <circle cx="510" cy="442" r="10" class="numg"/><text x="510" y="446" class="nt">A</text>
+  <path d="M700 400 V344" class="ingest"/>
+  <circle cx="716" cy="372" r="10" class="numg"/><text x="716" y="376" class="nt">B</text>
+  <path d="M720 214 V172" class="ingest"/>
+  <circle cx="736" cy="194" r="10" class="numg"/><text x="736" y="198" class="nt">C</text>
+
+  <!-- Key Vault reference -->
+  <path d="M300 414 V356" class="flow"/>
+  <text x="310" y="390" class="lbl">Key Vault reference</text>
+
+  <!-- telemetry -->
+  <path d="M780 116 H820" class="mon"/>
+  <path d="M780 277 H820" class="mon"/>
+  <path d="M780 442 H820" class="mon"/>
+  <path d="M230 196 V54 H904 V64" class="mon"/>
+
+  <!-- legend -->
+  <g transform="translate(24 566)">
+    <path d="M0 8 H34" class="flow"/><text x="42" y="12" class="s">Question and answer (1-5)</text>
+    <path d="M240 8 H274" class="ingest"/><text x="282" y="12" class="s">Document ingestion (A-C)</text>
+    <path d="M480 8 H514" class="mon"/><text x="522" y="12" class="s">Telemetry and diagnostic logs</text>
   </g>
-  <g font-size="15" font-weight="600" fill="#14202E">
-    <text x="606" y="196">Azure AI Search</text>
-    <text x="606" y="266">Cosmos DB</text>
-    <text x="606" y="336">Blob Storage</text>
-    <text x="606" y="406">Key Vault</text>
-    <text x="606" y="476">Azure OpenAI</text>
-  </g>
-  <g font-size="12.5" fill="#4A5B6D">
-    <text x="606" y="215">hybrid retrieval, semantic ranker</text>
-    <text x="606" y="285">chat session history</text>
-    <text x="606" y="355">source documents</text>
-    <text x="606" y="425">keys and connection strings</text>
-    <text x="606" y="495">chat + embedding models (East US 2)</text>
-  </g>
-
-  <g stroke="#1F4E8C" stroke-width="1.8" fill="none" marker-end="url(#a)">
-    <path d="M125 66V150"/>
-    <path d="M245 183H330"/>
-    <path d="M520 183H545"/>
-  </g>
-  <g stroke="#1F4E8C" stroke-width="1.8" fill="none">
-    <path d="M545 183V480"/>
-  </g>
-  <g stroke="#1F4E8C" stroke-width="1.8" fill="none" marker-end="url(#a)">
-    <path d="M545 200H590"/><path d="M545 270H590"/><path d="M545 340H590"/><path d="M545 410H590"/><path d="M545 480H590"/>
-  </g>
-  <text x="287" y="172" font-size="12" fill="#4A5B6D" text-anchor="middle">peering + PE</text>
-  <text x="137" y="94" font-size="12" fill="#4A5B6D">HTTP / HTTPS</text>
-
-  <rect x="45" y="330" width="200" height="60" rx="8" fill="#FFFFFF" stroke="#1F4E8C" stroke-width="1.5"/>
-  <text x="145" y="356" font-size="15" font-weight="600" fill="#14202E" text-anchor="middle">Azure Monitor</text>
-  <text x="145" y="375" font-size="12.5" fill="#4A5B6D" text-anchor="middle">Log Analytics + App Insights</text>
-  <rect x="45" y="410" width="200" height="60" rx="8" fill="#FFFFFF" stroke="#1F4E8C" stroke-width="1.5"/>
-  <text x="145" y="436" font-size="15" font-weight="600" fill="#14202E" text-anchor="middle">Private DNS zones</text>
-  <text x="145" y="455" font-size="12.5" fill="#4A5B6D" text-anchor="middle">linked to hub and spoke</text>
 </svg>

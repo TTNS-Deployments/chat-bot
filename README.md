@@ -1,246 +1,344 @@
-![RAG Chatbot](imgs/banner.svg)
+# AI Based Chatbot
 
-# RAG Chatbot on Azure
+**AI based chatbot platform**
 
-ARM templates and shell scripts that provision the Azure infrastructure for a customer-facing retrieval-augmented (RAG) chatbot: a web app that answers questions from your own documents using Azure OpenAI and Azure AI Search with hybrid retrieval. The network is hub-and-spoke, Application Gateway is the only public endpoint, and every backend service is reached through a private endpoint.
+Author: Vaibhav Chaudhary
 
-Every SKU, tier and capacity is set in one file, [`config/skus.env`](config/skus.env), so you can resize the deployment without touching the templates. Deployment is idempotent and runs with one command.
+AI Based Chatbot answers questions from your organisation's own documents. Users chat on a web page. Every answer is written by Azure OpenAI from passages that Azure AI Search found in your documents, and it lists the sources it used so users can check them.
 
-This repository provisions infrastructure only. The chatbot application code goes in [`app/`](app/). A simple front-end page that summarizes the deployment is in [`index.html`](index.html) and can be published with GitHub Pages.
+The solution is a deployable template. You choose the tier (SKU) of every Azure service in one parameters file and deploy with one command or the **Deploy to Azure** button.
 
-## Summary Table of Deployed Resources
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FTTNS-Deployments%2Fchat-bot%2Fmain%2FDeployment%2FARM%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2FTTNS-Deployments%2Fchat-bot%2Fmain%2FDeployment%2FARM%2FcreateUiDefinition.json)
 
-Resources are listed in deployment order, and template numbers match that order.
+> The button deploys the infrastructure and, by default, the application code straight from this repository's `main` branch. The scripted path (`Deployment/scripts/deploy.sh` or `deploy.ps1`) deploys both too, and also validates SKUs against your region first (see [Deployment options](#deployment-options)). The button only works while this repository is public, or if the template URLs point to a location the portal can read.
 
-| # | Name | Description | Service | SKU inputs (`config/skus.env`) | Template |
-| - | ---- | ----------- | ------- | ------------------------------ | -------- |
-| 1 | Network | Hub and spoke VNets, NSGs, peering, private DNS | Virtual Network, Private DNS | none (address ranges are set in `scripts/common.sh`) | [`01-network.json`](templates/01-network.json) |
-| 2 | Monitoring | Logs and application telemetry | Log Analytics, Application Insights | `LOG_ANALYTICS_SKU`, `LOG_RETENTION_DAYS`, `APPINSIGHTS_RETENTION_DAYS` | [`02-monitor.json`](templates/02-monitor.json) |
-| 3 | Key Vault | Holds keys and connection strings | Key Vault | `KEYVAULT_SKU`, `KEYVAULT_SOFT_DELETE_DAYS` | [`03-keyvault.json`](templates/03-keyvault.json) |
-| 4 | Storage | Source documents | Storage Account (blob) | `STORAGE_SKU`, `STORAGE_ACCESS_TIER` | [`04-storage.json`](templates/04-storage.json) |
-| 5 | Session store | Chat session history | Cosmos DB for NoSQL | `COSMOS_CAPACITY_MODE`, `COSMOS_THROUGHPUT` | [`05-cosmosdb.json`](templates/05-cosmosdb.json) |
-| 6 | Search | Hybrid retrieval with semantic ranking | Azure AI Search | `SEARCH_SKU`, `SEARCH_REPLICAS`, `SEARCH_PARTITIONS`, `SEARCH_SEMANTIC` | [`06-search.json`](templates/06-search.json) |
-| 7 | Models | Chat and embedding deployments | Azure OpenAI | `OPENAI_ACCOUNT_SKU`, `CHAT_*`, `EMBEDDING_*` | [`07-openai.json`](templates/07-openai.json) |
-| 8 | Web app | Chatbot orchestration | App Service (Linux) | `APP_PLAN_SKU`, `APP_RUNTIME` | [`08-appservice.json`](templates/08-appservice.json) |
-| 9 | Public entry | Only internet-facing endpoint | Application Gateway v2 | `APPGW_SKU`, `APPGW_CAPACITY` | [`09-appgateway.json`](templates/09-appgateway.json) |
-| 10 | Secrets | Writes keys to Key Vault | Key Vault secrets | none | [`10-secrets.json`](templates/10-secrets.json) |
-| 11 | Access | Web app identity to each service | Azure RBAC, Cosmos DB roles | none | [`11-rbac.json`](templates/11-rbac.json) |
+<br/>
 
-## Deployed Resources in More Detail
+## Overview
 
-- **Network** (`templates/01-network.json`): A hub VNet with an Application Gateway subnet and a spoke VNet with an App Service integration subnet and a private endpoints subnet, peered both ways. NSGs apply deny-by-default inbound rules, with explicit allows only for the gateway's required traffic and for HTTPS to the private endpoints. Six private DNS zones (blob, search, openai, azurewebsites, vaultcore, documents) are linked to both VNets.
-- **Monitoring** (`templates/02-monitor.json`): A Log Analytics workspace and a workspace-based Application Insights resource.
-- **Key Vault** (`templates/03-keyvault.json`): Azure RBAC authorization, public network access disabled, and a private endpoint. Purge protection is off so you can tear it down while testing.
-- **Storage Account** (`templates/04-storage.json`): StorageV2 with a `documents` blob container, anonymous access off, TLS 1.2 minimum, public network access disabled, and a blob private endpoint.
-- **Cosmos DB** (`templates/05-cosmosdb.json`): NoSQL API with a `chatbot` database and a `sessions` container partitioned on `/sessionId`, session consistency, periodic backup, and a private endpoint. Provisioned or serverless is a SKU input.
-- **Azure AI Search** (`templates/06-search.json`): Private endpoint, public access disabled, API key and Entra ID authentication both enabled, and the semantic ranker switched on so hybrid queries (keyword, vector, and semantic reranking) work.
-- **Azure OpenAI** (`templates/07-openai.json`): One account with a chat deployment and an embedding deployment, public access disabled, and a private endpoint created in the VNet's region.
-- **App Service** (`templates/08-appservice.json`): A Linux plan and web app with a system-assigned identity, regional VNet integration with all outbound traffic routed through the VNet, HTTPS only, FTP off, TLS 1.2 minimum, and a private endpoint.
-- **Application Gateway** (`templates/09-appgateway.json`): A Standard v2 gateway with a static public IP and a DNS label, forwarding to the web app's private endpoint with a health probe. It listens on HTTP port 80 until you add a certificate (see "After deployment").
-- **Key Vault secrets** (`templates/10-secrets.json`): Writes `OpenAIApiKey`, `SearchAdminKey`, `CosmosDbConnectionString` and `StorageConnectionString` through the Key Vault resource provider, so the vault can stay private.
-- **Access** (`templates/11-rbac.json`): Gives the web app's identity Key Vault Secrets User, Storage Blob Data Contributor, Search Index Data Contributor, Search Service Contributor, Cognitive Services OpenAI User, and Cosmos DB Built-in Data Contributor.
+- **Grounded answers with citations.** Each question runs a hybrid (keyword + vector) search with semantic reranking. The best passages go to the chat model, which must answer only from them and cite them as `[1]`, `[2]`… The page shows the cited sources with a snippet.
+- **Follow-up questions.** The conversation stays in the browser tab and recent turns are sent with each question, so "and for returns?" works.
+- **Your documents.** PDF, Word, PowerPoint, Excel, HTML, Markdown, CSV, JSON and text. Add them on the chat page (protected by an upload key) or with a script. Azure AI Search splits, embeds and indexes them automatically.
+- **No keys.** The web app and the search service use managed identities; key-based access is switched off on Azure OpenAI, AI Search and Storage. The one secret, the upload key, lives in Key Vault.
+- **Sized by you.** Every SKU lives in a parameters file with `dev`, `standard` and `prod` presets, is validated before deployment, and appears as a dropdown in the portal wizard.
 
-### How it fits together
+<br/>
 
-A customer's request reaches Application Gateway in the hub VNet, which forwards it across the peering to the App Service's private endpoint. The app embeds the question with the embedding model, runs a hybrid search in Azure AI Search, passes the retrieved passages to the chat model, and stores the session in Cosmos DB. Documents live in Blob Storage, and secrets live in Key Vault. The app reads secrets through Key Vault references, and its managed identity can reach each service directly. The app and every backend service reach each other only through private endpoints.
+## Current State of the Repository
 
-![RAG chatbot architecture](imgs/architecture.svg)
+### Before this build (audit of commit `037d3b0`, 2026-10-14)
 
-### Why Azure OpenAI has its own region setting
+The repository held an infrastructure-only design for a *private* hub-and-spoke deployment. It had no application and no Deploy to Azure button.
 
-Model availability differs by region and changes often, and the chat model named in an older solution document may no longer be deployable. The Azure OpenAI account therefore has its own `OPENAI_LOCATION` (default `eastus2`), while everything else uses `LOCATION` (default `centralindia`). A private endpoint can connect to a resource in another region, so the private endpoint is still created in your spoke VNet. Cross-region calls add a small amount of latency, and prompts are processed in the account's region, so check this against your data-residency requirements.
+| Files | What they contained | Status |
+|---|---|---|
+| `README.md` | Description of the infrastructure, SKU table, manual post-deployment steps | Documentation of a plan; it linked to `LICENSE`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and `SUPPORT.md`, which did not exist |
+| `templates/01-network.json` … `11-rbac.json` | 11 sequential ARM templates: hub/spoke VNets, private DNS, Application Gateway, Cosmos DB, AI Search, Azure OpenAI, App Service, Key Vault secrets, RBAC | Partial: compiled with Bicep, never deployed to a live subscription (per its own README) |
+| `deploy.sh`, `deploy-openai.sh`, `scripts/common.sh` | Bash scripts deploying the 11 templates in order | Partial: exercised against a mock CLI only |
+| `config/skus.env` | SKU inputs as shell variables | Working input for those scripts |
+| `app/README.md` | "Place the chatbot application here" | Planned: no code |
+| `index.html`, `imgs/banner.svg`, `imgs/architecture.svg` | GitHub Pages summary and diagrams of the private design | Static |
 
-`deploy.sh` checks that the models in `config/skus.env` are offered in `OPENAI_LOCATION` before it deploys anything.
+**Missing compared with [Call-Center-Analysis](https://github.com/TTNS-Deployments/Call-Center-Analysis):** application code and tests, a single `azuredeploy.json` with `createUiDefinition.json` and the Deploy to Azure button, per-environment SKU parameter files, CI and deploy workflows, `Documents/`, `LICENSE`/`SECURITY.md`/`SUPPORT.md`/`CODE_OF_CONDUCT.md`, `.gitignore`, `.env.example`, `Makefile`, `Dockerfile`.
 
-## SKU Inputs
+### What this build adds
 
-All sizing lives in [`config/skus.env`](config/skus.env). The defaults are a reasonable starting point; review them against your budget and expected traffic.
+The old private-network files were removed (they remain in git history), because the target architecture and the reference repository use one public-endpoint template secured with managed identities. In their place:
 
-| Variable | Controls | Default |
-| -------- | -------- | ------- |
-| `APPGW_SKU`, `APPGW_CAPACITY` | Application Gateway tier and instance count | `Standard_v2`, `1` |
-| `APP_PLAN_SKU`, `APP_RUNTIME` | App Service plan size and Linux runtime | `P1v3`, `PYTHON\|3.12` |
-| `OPENAI_ACCOUNT_SKU` | Azure OpenAI account tier | `S0` |
-| `CHAT_MODEL_NAME`, `CHAT_MODEL_VERSION` | Chat model | `gpt-4.1-mini`, `2025-04-14` |
-| `CHAT_DEPLOYMENT_SKU`, `CHAT_CAPACITY_K_TPM` | Deployment type and quota (thousands of tokens per minute) | `Standard`, `30` |
-| `EMBEDDING_MODEL_NAME`, `EMBEDDING_MODEL_VERSION` | Embedding model | `text-embedding-3-large`, `1` |
-| `EMBEDDING_DEPLOYMENT_SKU`, `EMBEDDING_CAPACITY_K_TPM` | Deployment type and quota | `Standard`, `30` |
-| `SEARCH_SKU`, `SEARCH_REPLICAS`, `SEARCH_PARTITIONS` | AI Search tier and scale | `standard`, `1`, `1` |
-| `SEARCH_SEMANTIC` | Semantic ranker | `standard` |
-| `COSMOS_CAPACITY_MODE`, `COSMOS_THROUGHPUT` | Cosmos DB mode and RU/s | `Provisioned`, `400` |
-| `STORAGE_SKU`, `STORAGE_ACCESS_TIER` | Storage redundancy and access tier | `Standard_LRS`, `Hot` |
-| `KEYVAULT_SKU`, `KEYVAULT_SOFT_DELETE_DAYS` | Key Vault tier and soft-delete retention | `standard`, `7` |
-| `LOG_ANALYTICS_SKU`, `LOG_RETENTION_DAYS`, `APPINSIGHTS_RETENTION_DAYS` | Monitoring tier and retention | `PerGB2018`, `30`, `90` |
+| Area | Added | Status |
+|---|---|---|
+| Application | FastAPI backend (`Code/backend`): chat with retrieval, prompt building, citations, history; document upload/list/delete; health; rate limiting; search index setup on startup. Single-page front end (`Code/frontend`). | Working locally (local mode); Azure mode unit-tested with mocked services |
+| Tests | 91 unit tests: prompt building, citations, retrieval, AI Search requests, OpenAI error handling, API validation and errors, uploads, and consistency of template, parameter files, portal form, app settings and button URL | Passing |
+| Infrastructure | Bicep (`Deployment/bicep`, one module per concern) compiled to `Deployment/ARM/azuredeploy.json`; portal wizard `createUiDefinition.json` | Builds and lints with no warnings; arm-ttk passes 48 of 49 checks (the other is a style rule on how `webAppUrl` is built); **not yet deployed to a live subscription** |
+| SKUs | Presets `dev`, `standard`, `prod` in `Deployment/ARM/parameters/`; `validate_skus.py` with region/model/quota checks | Working (region checks need `az login`) |
+| Deployment | `deploy.sh`, `deploy.ps1`, `ingest.sh`, `ingest.ps1`, `package.py`, `build_arm.sh`; Deploy to Azure button; GitHub Actions CI and Deploy | Scripts tested against a mock Azure CLI; shellcheck and PSScriptAnalyzer clean |
+| Docs and repo | `Documents/` (architecture, deployment guide, configuration, local development), `Deployment/README.md`, licence and policy files, dev container, pre-commit hook | Done |
 
-Notes on the defaults:
+### Change log
 
-- **Chat model.** The default is `gpt-4.1-mini` because `gpt-35-turbo` is retired or retiring and may not be deployable for new deployments. If your solution document specifies a different model, change `CHAT_MODEL_NAME` and `CHAT_MODEL_VERSION`. List what your region offers with `az cognitiveservices model list --location eastus2 -o table`.
-- **Embedding dimensions.** The vector fields in your AI Search index must match the embedding model: 3072 for `text-embedding-3-large`, 1536 for `text-embedding-3-small` and `text-embedding-ada-002`.
-- **Minimum tiers.** Private endpoints need an App Service plan of B1 or above and an AI Search tier of `basic` or above. `deploy.sh` refuses Free and Shared plans.
-- **Using another file.** Run `SKU_FILE=/path/to/other.env ./deploy.sh` to keep separate sizing for dev and production.
+| Date | Change |
+|---|---|
+| 2026-10-14 | Audited the repository against Call-Center-Analysis. Removed the private hub-and-spoke templates and scripts (`templates/01-11`, `deploy.sh`, `deploy-openai.sh`, `scripts/common.sh`, `config/skus.env`, `index.html`, `app/README.md`, `imgs/banner.svg`, old `imgs/architecture.svg`). |
+| 2026-10-14 | Added the application (backend, chat page, tests), Bicep infrastructure and compiled ARM template, portal wizard and Deploy to Azure button, SKU presets and validator, bash and PowerShell deployment and ingestion scripts, CI/CD workflows, documentation, licence and policy files, dev container. |
 
-## Repository Layout
+### Differences from Call-Center-Analysis
 
+| Topic | Call-Center-Analysis | This repository | Why |
+|---|---|---|---|
+| Infrastructure source | Hand-written ARM JSON | Bicep modules compiled to the same `Deployment/ARM/azuredeploy.json` | Requested; the button still uses the compiled ARM file. CI and a pre-commit hook keep it in sync. |
+| Deploy button | Infrastructure only | Infrastructure, plus optional code deployment from this public repository (default on) | One click gives a working chatbot. Code-only redeploys still use the scripts. |
+| Scripts | Bash only | Bash and PowerShell, plus a SKU validator both share | Requested |
+| Web framework | Django with Entra ID sign-in and app roles | FastAPI, no sign-in (App Service Authentication can be switched on) | A chat API and one page need no portal framework. See [security notes](#security-notes). |
+| Processing | Event Grid → Storage queue → Azure Functions | AI Search indexer with integrated vectorization, started by the app after upload | The search service chunks and embeds documents itself; there is less to operate. |
+| State | Cosmos DB | None on the server; conversation kept in the browser | Stateless app, nothing personal stored server-side |
+| Key-based auth | Left enabled for tools | Disabled on Azure OpenAI, AI Search and Storage | Requested: managed identities instead of keys wherever possible |
+| Extras | — | `.devcontainer/`, `ingest` scripts, a local mode for the chat page | Requested or needed for the chatbot |
+| Not carried over | Power BI `Analytics/`, `docker-compose.yml`, Entra setup script | — | Not relevant to the chatbot |
+
+<br/>
+
+## Architecture
+
+![Architecture](imgs/architecture.svg)
+
+| # | Step | Azure service |
+|---|------|---------------|
+| 1 | The user asks a question on the chat page; the browser sends it with the recent conversation | App Service (FastAPI) |
+| 2 | Hybrid keyword + vector search with semantic reranking | Azure AI Search |
+| 3 | The search service vectorises the question with the embedding model | Azure OpenAI (embedding deployment) |
+| 4 | The question and the numbered sources go to the chat model, which answers only from them | Azure OpenAI (chat deployment) |
+| 5 | The answer and the cited sources are returned and shown | App Service |
+| A | A key holder uploads a document (or runs `ingest.sh`); it is stored and the indexer is started | Blob Storage |
+| B | The indexer reads new and changed files (also every 30 minutes) | Azure AI Search indexer (managed identity) |
+| C | Files are split into chunks and embedded, one search document per chunk | AI Search skillset + Azure OpenAI |
+
+Supporting services: **Key Vault** holds the upload key; **Application Insights** and **Log Analytics** collect telemetry and diagnostic logs. All service-to-service access uses **managed identities** with least-privilege roles.
+
+| Component | Resource | SKU parameters |
+|---|---|---|
+| Web app | App Service plan (Linux) + web app, Python 3.12 | `appServicePlanSku`, `appServiceInstanceCount` |
+| Language models | Azure OpenAI with `chat` and `embedding` deployments | `openAiLocation`, `chatModelName`, `chatModelVersion`, `chatDeploymentSku`, `chatCapacity`, `embeddingModelName`, `embeddingModelVersion`, `embeddingDeploymentSku`, `embeddingCapacity` |
+| Retrieval | Azure AI Search: index, data source, skillset, indexer | `searchSku`, `searchReplicaCount`, `searchPartitionCount`, `semanticSearch` |
+| Documents | Storage account, `documents` container | `storageSku` |
+| Secrets | Key Vault (RBAC) | `keyVaultSku` |
+| Monitoring | Log Analytics + Application Insights | `logAnalyticsRetentionDays`, `logAnalyticsDailyQuotaGb` |
+
+More detail: [Architecture](Documents/architecture.md)
+
+<br/>
+
+## Screens
+
+| Chat with sources | Documents |
+|---|---|
+| ![Chat](imgs/screenshot-chat.png) | ![Documents](imgs/screenshot-documents.png) |
+
+Screenshots taken in local mode, where answers are extracts from the sample documents. Deployed, the answers are written by the chat model.
+
+<br/>
+
+## Quick start (local mode, no Azure needed)
+
+Local mode replaces Azure AI Search with keyword scoring over `Data/sample_docs`, and Azure OpenAI with an extractive stand-in, so you can run the page and the API anywhere:
+
+```bash
+make setup     # creates .venv and installs everything
+make run       # http://localhost:8000
+make test
 ```
-RAG_Chatbot/
-├── README.md
-├── index.html                  # simple front-end page (GitHub Pages)
-├── deploy.sh                   # deploys everything, in order
-├── deploy-openai.sh            # standalone: redeploy just the models
-├── config/
-│   └── skus.env                # every SKU, tier and capacity input
-├── scripts/
-│   └── common.sh               # shared settings and helpers
-├── templates/                  # resource-group-scope ARM templates, in deployment order
-│   ├── 01-network.json
-│   ├── 02-monitor.json
-│   ├── 03-keyvault.json
-│   ├── 04-storage.json
-│   ├── 05-cosmosdb.json
-│   ├── 06-search.json
-│   ├── 07-openai.json
-│   ├── 08-appservice.json
-│   ├── 09-appgateway.json
-│   ├── 10-secrets.json
-│   └── 11-rbac.json
-├── app/                        # chatbot application code goes here
-├── imgs/                       # banner and architecture diagram
-├── LICENSE
-├── CODE_OF_CONDUCT.md
-├── SECURITY.md
-├── SUPPORT.md
-└── .gitignore
-```
+
+Details, API examples and running against a deployed environment: [Local development](Documents/local-development.md).
+
+<br/>
 
 ## Prerequisites
 
-1. **An Azure subscription** where you can create resources and role assignments. Contributor plus User Access Administrator, or Owner, on the subscription or resource group. Step 11 creates role assignments, which Contributor alone cannot do.
-2. **Azure OpenAI access and quota** for the chat and embedding models in `OPENAI_LOCATION`.
-3. **Azure CLI.** Check with `az --version`. Install: <https://learn.microsoft.com/en-us/cli/azure/install-azure-cli>
-4. **jq**, used to parse deployment outputs. Check with `jq --version`. Install with `sudo apt install jq` (Debian/Ubuntu), `brew install jq` (macOS), or see <https://jqlang.org/download/>
-5. **Bash.** The scripts use `set -euo pipefail`. On Windows, run them through WSL or Git Bash rather than PowerShell or cmd.
+| Requirement | Notes |
+|---|---|
+| Azure subscription | **Owner** on the target resource group, or Contributor + User Access Administrator. The template creates role assignments. |
+| Azure OpenAI access and quota | Quota for the chat and embedding models, with the chosen deployment types, in `openAiLocation`. Check *Azure AI Foundry → Quotas*. The defaults need 30K TPM each (`dev`). |
+| Resource providers | `Microsoft.Web`, `Microsoft.CognitiveServices`, `Microsoft.Search`, `Microsoft.Storage`, `Microsoft.KeyVault`, `Microsoft.OperationalInsights`, `Microsoft.Insights` registered (`az provider register -n <namespace>`). |
+| Tools (scripted deployment) | Azure CLI 2.60+, Python 3.10+, and bash or PowerShell 7. The dev container in `.devcontainer/` has everything, including Bicep, shellcheck and PSScriptAnalyzer. |
 
-## Step-by-Step: Deploying from Scratch
+<br/>
 
-1. **Clone the repository**
+## Choosing SKUs
 
-   ```bash
-   git clone https://github.com/TTNS-Deployments/RAG_Chatbot.git
-   cd RAG_Chatbot
+Every tier and size lives in a **SKU file** in [`Deployment/ARM/parameters/`](Deployment/ARM/parameters), not in the templates. There are three presets:
+
+| Preset | For | Highlights |
+|---|---|---|
+| [`dev`](Deployment/ARM/parameters/dev.parameters.json) | Trials and development | App Service B1, AI Search basic with 1 replica, free semantic ranker, 30K TPM per model, LRS storage |
+| [`standard`](Deployment/ARM/parameters/standard.parameters.json) | A small production workload | App Service P0v3, AI Search basic with 2 replicas (read SLA), standard semantic ranker, 50K TPM, ZRS storage |
+| [`prod`](Deployment/ARM/parameters/prod.parameters.json) | Larger document sets and traffic | App Service P1v3 x2, AI Search S1 with 2 replicas, `text-embedding-3-large`, 150K/120K TPM, Data Zone processing, 90-day logs |
+
+What each field controls:
+
+| Field | Affects | Allowed values |
+|---|---|---|
+| `location` | Region of everything except Azure OpenAI | Any region with the services |
+| `appServicePlanSku`, `appServiceInstanceCount` | Web app cost, capacity and SLA | `B1`-`B3`, `S1`-`S3`, `P0v3`-`P3v3`; 1-10 |
+| `openAiLocation` | Where prompts and documents are processed; which models exist | Region offering both models |
+| `openAiSku` | Azure OpenAI account tier | `S0` |
+| `chatModelName`, `chatModelVersion` | Answer quality, speed and price | Any chat model offered in `openAiLocation` |
+| `chatDeploymentSku`, `embeddingDeploymentSku` | Data processing location and default quota | `GlobalStandard`, `DataZoneStandard`, `Standard` |
+| `chatCapacity`, `embeddingCapacity` | Throughput limit in thousands of tokens per minute; must fit your quota | 1-1000 |
+| `embeddingModelName` | Retrieval quality, index size, embedding cost (changing it means rebuilding the index) | `text-embedding-3-small` (1536), `text-embedding-3-large` (3072) |
+| `searchSku` | Index storage, limits and price | `basic`, `standard`, `standard2`, `standard3` |
+| `searchReplicaCount` | Query throughput and SLA (2+ for read SLA) | basic 1-3; standard 1-12 |
+| `searchPartitionCount` | Index size | basic 1-3; standard 1, 2, 3, 4, 6, 12 (replicas x partitions ≤ 36) |
+| `semanticSearch` | Reranking quality and per-query cost | `disabled`, `free` (1,000 queries a month), `standard` |
+| `storageSku` | Durability of the source documents | `Standard_LRS`, `_ZRS`, `_GRS`, `_RAGRS`, `_GZRS`, `_RAGZRS` |
+| `keyVaultSku` | Key Vault tier | `standard`, `premium` |
+| `logAnalyticsRetentionDays`, `logAnalyticsDailyQuotaGb` | Log cost and history | 30-730 days; GB per day or `-1` for no cap |
+
+**How to change SKUs:**
+
+1. Edit a preset, or copy one to a new name (`cp dev.parameters.json uat.parameters.json` → deploy with `-e uat`).
+2. Or override single values at deploy time, without editing files: `deploy.sh -e dev --set searchSku=standard --set chatCapacity=60`, or `deploy.ps1 -Environment dev -Set searchSku=standard,chatCapacity=60`.
+3. Validate: `python3 Deployment/scripts/validate_skus.py -e dev [--set …] --check-region`. The deploy scripts always run this first. It rejects values the template does not allow, AI Search scale combinations Azure refuses, and (with `--check-region`, after `az login`) services, models or deployment types not offered in your regions. It also warns when Azure OpenAI quota looks too low. Example:
+
+   ```text
+   The SKU selection is not valid:
+     - searchReplicaCount=5: the basic tier allows 1-3 replicas
+     - chat model gpt-4.1-mini version 2025-04-14 with deployment type Standard is not offered in 'centralindia'.
+       List what is: az cognitiveservices model list -l centralindia -o table
    ```
 
-2. **Log in to Azure**
+The button path offers the same choices as dropdowns and sliders in the portal wizard. The full reference, with per-preset values, is in [Deployment/README.md](Deployment/README.md).
 
-   ```bash
-   az login
-   az account set --subscription "<subscription-id-or-name>"
-   ```
+<br/>
 
-3. **Set your SKUs.** Open `config/skus.env` and adjust the values. Then review the settings block at the top of `scripts/common.sh`. Each can also be overridden with an environment variable:
+## Deployment options
 
-   ```bash
-   RESOURCE_GROUP="rg-chatbot-dev"
-   LOCATION="centralindia"
-   OPENAI_LOCATION="eastus2"
-   NAME_PREFIX="chatbot"
-   ENVIRONMENT="dev"
-   APP_PUBLIC_ACCESS="Disabled"
-   ```
+### 1. Deploy to Azure button
 
-   Resource names are generated from `NAME_PREFIX`, `ENVIRONMENT`, and a uniqueness suffix, so re-running with the same values updates existing resources instead of colliding with them.
+Click the button at the top. The portal wizard asks for:
 
-4. **Run the script**
+| Tab | Fields |
+|---|---|
+| Basics | Subscription, resource group, region, solution prefix (3-8 lowercase letters/digits), environment |
+| Azure OpenAI | Azure OpenAI region; chat model, version, deployment type, capacity; embedding model, version, deployment type, capacity |
+| Azure AI Search | Tier; replicas and partitions (limited to what the tier allows); semantic ranker |
+| Hosting and data | App Service plan and instances; storage redundancy; Key Vault tier; log retention and daily cap |
+| Application | Deploy the application code (default **Yes**: App Service pulls and builds this repository's `main` branch); repository URL and branch; document upload on/off |
 
-   ```bash
-   chmod +x deploy.sh
-   ./deploy.sh
-   ```
+It deploys: Log Analytics, Application Insights, a storage account with the `documents` container, Key Vault with a generated upload key, Azure OpenAI with two model deployments, AI Search, an App Service plan and web app, all role assignments, and (by default) the application code. It takes 10-20 minutes. Then follow [post-deployment steps](#post-deployment-steps-and-document-ingestion).
 
-5. **Review the plan and confirm.** The script prints every SKU it is about to deploy and asks for confirmation. It then checks that your chosen models exist in `OPENAI_LOCATION` before creating anything. Use `./deploy.sh --yes` to skip the prompts in automation; with `--yes`, a missing model stops the run.
-
-6. **Read the summary at the end.** It lists the public URL, every resource name, and the secrets stored in Key Vault.
-
-Application Gateway is usually the slowest step, and a full run typically takes 20 to 40 minutes.
-
-## After Deployment
-
-- **Add HTTPS.** The gateway listens on HTTP port 80 only. Before real users reach it, add a certificate and an HTTPS listener:
-
-  ```bash
-  az network application-gateway ssl-cert create -g rg-chatbot-dev --gateway-name agw-chatbot-dev \
-    -n site-cert --cert-file site.pfx --cert-password "<pfx-password>"
-  az network application-gateway frontend-port create -g rg-chatbot-dev --gateway-name agw-chatbot-dev \
-    -n port-443 --port 443
-  az network application-gateway http-listener create -g rg-chatbot-dev --gateway-name agw-chatbot-dev \
-    -n listener-443 --frontend-port port-443 --frontend-ip public-frontend --ssl-cert site-cert
-  az network application-gateway rule create -g rg-chatbot-dev --gateway-name agw-chatbot-dev \
-    -n route-https --rule-type Basic --http-listener listener-443 --address-pool webapp-pool \
-    --http-settings webapp-https --priority 110
-  ```
-
-  Then point your domain's DNS at the gateway's DNS name. Re-running `deploy.sh` redeploys the gateway template, which resets it to HTTP only, so repeat these commands afterwards.
-- **Deploy your application code** to the App Service (`WEB_APP_NAME` in the summary). With `APP_PUBLIC_ACCESS="Disabled"` the web app and its deployment site are private, so deploy from a build agent or machine inside the VNet (for example a pipeline agent, jump box, or VPN client). For a quick proof of concept you can temporarily allow public access, deploy, and switch it back:
-
-  ```bash
-  az resource update -g rg-chatbot-dev -n <web-app-name> --resource-type Microsoft.Web/sites \
-    --set properties.publicNetworkAccess=Enabled
-  ```
-
-- **Create the search index and load documents.** The index, its vector field (dimensions must match your embedding model), and the semantic configuration are not created by this repository. Upload source files to the `documents` container, then index them with your ingestion pipeline. Reaching the private Storage and Search endpoints from outside the VNet needs the same private access as above.
-- **Check the Key Vault references.** Role assignments and references can take a few minutes to start working. If an app setting shows as unresolved, restart the web app.
-
-## Redeploying a Single Piece
-
-Every resource has its own template, and every deployment is named after its template, so you can redeploy one without touching the rest. To redeploy only the models after editing `config/skus.env`:
+### 2. Script (bash)
 
 ```bash
-./deploy-openai.sh
+az login
+az account set --subscription "<subscription>"
+Deployment/scripts/deploy.sh -g rg-chatbot-dev -e dev --seed
 ```
 
-Any other single template can be redeployed directly, but most need the outputs of earlier ones (subnet and DNS zone IDs), so prefer re-running `./deploy.sh`. ARM deployments are idempotent: re-running a template against an existing resource updates it in place.
+### 3. Script (PowerShell)
 
-## Tearing Everything Down
+```powershell
+az login
+./Deployment/scripts/deploy.ps1 -ResourceGroup rg-chatbot-dev -Environment dev -Seed
+```
+
+Both scripts validate the SKUs, create the resource group, deploy the template, grant you data access for ingestion, deploy the code, wait until the app reports healthy, and with `--seed`/`-Seed` load the sample documents. Options: `--set`/`-Set`, `--skip-infra`/`-SkipInfra` (code only), `--skip-code`/`-SkipCode`, `--skip-region-check`/`-SkipRegionCheck`, `-l`/`-Location`, `-s`/`-Subscription`. Redeploying is safe and keeps the existing upload key.
+
+### 4. GitHub Actions
+
+`.github/workflows/deploy.yml` deploys a chosen preset through OIDC. One-time setup is in the [Deployment guide](Documents/deployment-guide.md#2c-deploy-with-github-actions).
+
+<br/>
+
+## Post-deployment steps and document ingestion
+
+1. **Check health:** open `https://<web app>/healthz`. Expect `"status": "ok"` and `"searchSetup": "ready"` (the web app creates the search index, data source, skillset and indexer on startup; allow up to 10 minutes after a first deployment for role assignments to apply).
+2. **Get the upload key:**
+   ```bash
+   az keyvault secret show --vault-name <key-vault> -n upload-api-key --query value -o tsv
+   ```
+   The scripts give the deploying identity access. After a portal deployment, first give yourself *Key Vault Secrets User* on the vault.
+3. **Add documents**, one of:
+   - **Chat page:** **Documents** → paste the upload key → choose a file → **Upload**. The dialog shows the indexing status and any per-file errors.
+   - **Script** (bulk, folders): `Deployment/scripts/ingest.sh -g <rg> ./my-docs ./faq.pdf` or `./Deployment/scripts/ingest.ps1 -ResourceGroup <rg> -Path ./my-docs`.
+   - **Anything that writes to Blob Storage** (Storage Explorer, AzCopy, a pipeline) into the `documents` container; the indexer picks files up within 30 minutes.
+4. **Wait a few minutes**, then ask a question that your documents answer.
+5. Delete the sample documents if you loaded them (`--seed`): Documents dialog or `DELETE /api/documents/<name>`.
+
+Full steps and troubleshooting: [Deployment guide](Documents/deployment-guide.md).
+
+<br/>
+
+## Using the chatbot
+
+- Type a question and press **Enter** (Shift+Enter for a new line). The page shows *Searching the documents…* while it works.
+- Answers cite sources as numbered markers. Click a marker, or a source under the answer, to see the passage it came from.
+- Ask follow-ups naturally ("and for washing machines?"). The last six exchanges are taken into account.
+- If the documents do not cover a question, the chatbot says so instead of guessing.
+- **New conversation** clears the history (it is kept only in this browser tab).
+- On errors (service busy, connection lost) the message stays in the box and **Try again** resends it.
+- The API is documented at `/api/docs`.
+
+<br/>
+
+## Cost notes, security notes, clean-up
+
+### Cost notes
+
+- **Billed continuously:** the App Service plan (per instance) and Azure AI Search (per search unit = replicas x partitions). These are most of the fixed monthly cost. `dev` uses the smallest sensible sizes.
+- **Billed per use:** Azure OpenAI tokens (questions and indexing), the semantic ranker beyond the free 1,000 queries a month on the `standard` plan, storage per GB, and Log Analytics ingestion (capped by `logAnalyticsDailyQuotaGb`).
+- `text-embedding-3-large` costs several times more than `-small` per token and doubles index size.
+- Check current prices for your region before deploying: <https://azure.microsoft.com/pricing/calculator/>
+
+### Security notes
+
+- **No keys anywhere:** managed identities with least-privilege roles; key auth disabled on Azure OpenAI, AI Search and Storage. The upload key is the only secret and lives in Key Vault.
+- **Uploads are protected** by the upload key, file-type and size checks, because uploaded text becomes grounding data for every user.
+- **The chat page has no sign-in by default.** Anyone with the URL can ask questions (rate limited per IP). For internal use, turn on App Service Authentication with Microsoft Entra ID: *Web app → Authentication → Add identity provider → Microsoft*, then require authentication. The [Deployment guide](Documents/deployment-guide.md#3-after-deployment) has the CLI command.
+- Services keep public endpoints protected by Entra ID; private endpoints and WAF are not part of this template.
+- Details: [SECURITY.md](SECURITY.md).
+
+### Clean-up
 
 ```bash
 az group delete --name rg-chatbot-dev --yes --no-wait
 ```
 
-Key Vault and Azure OpenAI accounts are soft-deleted, so re-creating them with the same name in the same resource group fails until they are purged:
+Key Vault and Azure OpenAI are soft-deleted. To reuse the same names (same resource group and prefix), purge them:
 
 ```bash
 az keyvault purge --name <key-vault-name>
-az cognitiveservices account purge --name <openai-account-name> --resource-group rg-chatbot-dev --location eastus2
+az cognitiveservices account purge --name <openai-account-name> --resource-group rg-chatbot-dev --location <openai-location>
 ```
 
-## Assumptions
-
-- Resource group `rg-chatbot-dev` in `centralindia`, Azure OpenAI in `eastus2`, prefix `chatbot`, environment `dev`. All are overridable.
-- A single region and a single environment. There is no multi-region failover.
-- The gateway uses the Standard v2 SKU without a web application firewall, as in the original solution design. Consider WAF v2 before exposing the chatbot to the public internet.
-- Not included: Azure Functions, Azure Backup, Microsoft Defender for Cloud, DDoS Protection, a VPN or Bastion host, and Microsoft Entra ID configuration for admin sign-in. Add them as separate templates if your design needs them.
-- Application Insights uses its public ingestion endpoint. Add Azure Monitor Private Link Scope if telemetry must stay private too.
-- The templates were compiled and checked with the Bicep CLI and the scripts were exercised against a mock Azure CLI, but they have not been run against a live subscription. Do a first run in a non-production subscription.
-
-## Cost Note
-
-Application Gateway, the App Service plan, and AI Search bill continuously regardless of traffic, and are usually most of the monthly cost. Azure OpenAI bills per token, Cosmos DB bills per provisioned RU/s, and the rest is low at this scale. Change the SKUs in `config/skus.env`, then review current pricing before deploying: <https://azure.microsoft.com/en-us/pricing/calculator/>
+<br/>
 
 ## Troubleshooting
 
-- **`az: command not found` or `jq: command not found`**: install the missing tool. See Prerequisites.
-- **`Run 'az login' first.`**: you are not authenticated. Run `az login` and retry.
-- **`Missing values in config/skus.env`**: a variable was deleted or left empty. Restore it from the file in this repository.
-- **A model is not found in the region**: `deploy.sh` stops before deploying. Pick a model and deployment type your region lists (`az cognitiveservices model list --location <region> -o table`) or change `OPENAI_LOCATION`.
-- **Quota errors on Azure OpenAI, App Service, or Search**: some subscriptions have per-region quota limits. Check your quota in the Azure portal, lower the capacity in `config/skus.env`, or try another region.
-- **`AuthorizationFailed` on role assignments (step 11)**: you need User Access Administrator or Owner.
-- **A vault or account name already exists**: a soft-deleted Key Vault or Azure OpenAI account is blocking it. Purge it (see Tearing Everything Down).
-- **A deployment fails partway through**: `deploy.sh` does not roll back earlier steps. Fix the reported error and re-run `./deploy.sh`; resources that already deployed update in place.
-- **Gateway shows 502 or unhealthy backend**: check the backend health in the portal. The web app must be running and its private endpoint DNS must resolve from the hub VNet; the private DNS zones are linked to both VNets by step 1.
+| Symptom | Fix |
+|---|---|
+| `The SKU selection is not valid` | Read the listed values; change the preset or use `--set`. For "not offered in region", pick from `az cognitiveservices model list -l <region> -o table` or change `openAiLocation`. |
+| `InsufficientQuota` during deployment | Lower `chatCapacity`/`embeddingCapacity`, use another deployment type or region, or request quota. |
+| `AuthorizationFailed` on role assignments | You need Owner, or Contributor + User Access Administrator, on the resource group. |
+| Name already exists / soft-deleted vault or account | Purge it (see [Clean-up](#clean-up)). |
+| `/healthz` shows `"searchSetup": "pending"` for more than 10 minutes, or `"failed"` | Restart the web app; role assignments may not have applied yet. `searchSetupDetail` gives the reason. |
+| Upload says the key is not available yet | The Key Vault reference has not resolved; restart the web app after a few minutes. |
+| "The service could not answer right now" | Application Insights → Failures shows the cause (deployment name, permission, retired model). |
+| "Too many questions in a short time" | Per-IP rate limit; raise `RATE_LIMIT_PER_MINUTE` if users share one IP. |
+| Answers never find a document | Documents dialog → indexing status/errors. Scanned PDFs without a text layer need OCR (not included). |
+| Portal deployment fails on the Git code deployment (`sourcecontrols`) | The infrastructure is in place. Deploy the code with `deploy.sh -g <rg> -e dev --skip-infra`. |
 
-## Contributing and Support
+More: [Deployment guide → Troubleshooting](Documents/deployment-guide.md#troubleshooting).
 
-See [SUPPORT.md](SUPPORT.md) for questions and bug reports, [SECURITY.md](SECURITY.md) for reporting vulnerabilities, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
+<br/>
 
-## License
+## Repository layout
 
-Released under the [MIT License](LICENSE).
+| Path | Contents |
+|---|---|
+| [`Code/backend`](Code/backend) | `chatbot` Python package: FastAPI app, retrieval, prompt building and citations, Azure OpenAI and AI Search clients, document store, CLI; unit tests |
+| [`Code/frontend`](Code/frontend) | The chat page (HTML, CSS, JavaScript; no build step) |
+| [`Deployment/bicep`](Deployment/bicep) | Infrastructure source: `main.bicep` and one module per concern |
+| [`Deployment/ARM`](Deployment/ARM) | Compiled `azuredeploy.json`, SKU presets (`parameters/`), portal form for the Deploy button |
+| [`Deployment/scripts`](Deployment/scripts) | `deploy.sh`/`.ps1`, `ingest.sh`/`.ps1`, `validate_skus.py`, `build_arm.sh`, `package.py` |
+| [`Data/sample_docs`](Data/sample_docs) | Fictional sample documents for local mode and smoke tests |
+| [`Documents`](Documents) | Architecture, deployment guide, configuration, local development |
+| [`imgs`](imgs) | Architecture diagram (SVG source) and screenshots |
+| [`.github/workflows`](.github/workflows) | CI (tests, template freshness, linters) and Deploy (manual, per preset) |
+| [`.devcontainer`](.devcontainer), [`.githooks`](.githooks) | Codespace/dev container with az, Bicep, PowerShell; pre-commit check for `azuredeploy.json` |
+
+<br/>
+
+## Status and roadmap
+
+| Item | Status |
+|---|---|
+| Chat with grounded answers, citations, history; document upload and script ingestion; Bicep/ARM, button, scripts, presets | Implemented; tested locally and with mocked Azure services |
+| First deployment to a live subscription (template what-if, model availability in the default regions, Git code deployment from the button) | To do: needs a subscription with Azure OpenAI quota |
+| Optional user sign-in built into the template, private endpoints, OCR for scanned PDFs | Planned / on request |
+
+<br/>
+
+## Contributing, support and licence
+
+- Run `make setup hooks` once. Before committing: `make test lint check-arm`. Commit Bicep changes together with the rebuilt `Deployment/ARM/azuredeploy.json` (the pre-commit hook and CI enforce this).
+- Support: [SUPPORT.md](SUPPORT.md). Security issues: [SECURITY.md](SECURITY.md). Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- Licence: proprietary, see [LICENSE](LICENSE).

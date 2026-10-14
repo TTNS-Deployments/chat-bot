@@ -1,0 +1,49 @@
+name: Deploy
+
+# Manual deployment of infrastructure + code to one environment.
+# Setup (once per environment) is described in Documents/deployment-guide.md, "Deploy with GitHub Actions":
+# GitHub environment variables AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP
+# and a federated credential for repo:<org>/<repo>:environment:<env>.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: SKU preset (parameters file name)
+        type: choice
+        options: [dev, standard, prod]
+        default: dev
+      scope:
+        description: What to deploy
+        type: choice
+        options: [all, code-only, infra-only]
+        default: all
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy
+        env:
+          SCOPE: ${{ inputs.scope }}
+        run: |
+          args=(-g "${{ vars.AZURE_RESOURCE_GROUP }}" -e "${{ inputs.environment }}")
+          [[ "$SCOPE" == "code-only" ]] && args+=(--skip-infra)
+          [[ "$SCOPE" == "infra-only" ]] && args+=(--skip-code)
+          Deployment/scripts/deploy.sh "${args[@]}"
