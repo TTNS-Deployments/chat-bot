@@ -19,7 +19,8 @@ class ChatModel(Protocol):
 class AzureChatModel:
     def __init__(self, settings: Settings, client=None):
         self.settings = settings
-        self._omit_temperature = settings.chat_temperature is None
+        self._reasoning = settings.chat_reasoning_effort not in ("", "none")
+        self._omit_temperature = self._reasoning or settings.chat_temperature is None
         if client is None:
             from azure.identity import get_bearer_token_provider
             from openai import AzureOpenAI
@@ -41,6 +42,9 @@ class AzureChatModel:
 
         kwargs = {"model": self.settings.chat_deployment, "messages": list(messages),
                   "max_completion_tokens": self.settings.chat_max_tokens}
+        if self._reasoning:
+            # Reasoning models (gpt-5 family) take an effort level and reject temperature.
+            kwargs["reasoning_effort"] = self.settings.chat_reasoning_effort
         if not self._omit_temperature:
             kwargs["temperature"] = self.settings.chat_temperature
         try:

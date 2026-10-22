@@ -17,7 +17,8 @@ TEMPLATE = json.loads((ARM / "azuredeploy.json").read_text())
 PARAMS = TEMPLATE["parameters"]
 UI = json.loads((ARM / "createUiDefinition.json").read_text())
 PARAM_FILES = sorted((ARM / "parameters").glob("*.parameters.json"))
-NOT_IN_UI = {"deployerPrincipalId", "deployerPrincipalType", "uploadApiKey", "tags", "openAiSku"}
+NOT_IN_UI = {"deployerPrincipalId", "deployerPrincipalType", "tags", "openAiSku", "shortResourceNames",
+             "existingAppServicePlanName", "allowStorageSharedKey", "appPackageUrl", "enableDiagnostics"}
 
 
 @pytest.mark.parametrize("path", PARAM_FILES, ids=lambda p: p.name)
@@ -55,13 +56,12 @@ def test_ui_dropdown_values_are_allowed_by_the_template():
 
 def test_app_settings_are_read_by_the_app():
     main_bicep = (ROOT / "Deployment" / "bicep" / "main.bicep").read_text()
-    block = main_bicep.split("appSettings: {", 1)[1].split("}", 1)[0]
-    names = re.findall(r"^\s*([A-Z_]+):", block, flags=re.M)
+    names = set(re.findall(r"^\s+([A-Z][A-Z_]+):", main_bicep, flags=re.M))
+    platform = {"WEBSITE_RUN_FROM_PACKAGE", "SCM_DO_BUILD_DURING_DEPLOYMENT", "PYTHONPATH"}
     config = (ROOT / "Code" / "backend" / "chatbot" / "config.py").read_text()
-    assert names, "no app settings found"
-    for name in names:
-        if name != "CHATBOT_MODE":
-            assert f'"{name}"' in config, f"{name} is set by the template but never read"
+    assert len(names) > 15, "no app settings found"
+    for name in names - platform:
+        assert f'"{name}"' in config, f"{name} is set by the template but never read"
 
 
 @pytest.mark.skipif(not shutil.which("az"), reason="Azure CLI with Bicep not installed")
@@ -133,7 +133,7 @@ def fake_az(models=None, usages=None, search_regions=("Central India",)):
                                       for t in ("searchServices", "sites", "storageAccounts", "vaults", "accounts")]}
         if args[:3] == ["cognitiveservices", "model", "list"]:
             return models if models is not None else [
-                {"model": {"name": "gpt-4.1-mini", "version": "2025-04-14", "skus": [{"name": "GlobalStandard"}]}},
+                {"model": {"name": "gpt-5-mini", "version": "2025-08-07", "skus": [{"name": "GlobalStandard"}]}},
                 {"model": {"name": "text-embedding-3-small", "version": "1", "skus": [{"name": "GlobalStandard"}]}},
             ]
         if args[:3] == ["cognitiveservices", "usage", "list"]:
@@ -153,12 +153,57 @@ def test_region_checks_report_missing_model_service_and_quota():
         az=fake_az(search_regions=("West Europe",),
                    usages=[{"name": {"value": "OpenAI.GlobalStandard.text-embedding-3-small"}, "limit": 40, "currentValue": 20}]))
     assert any("Azure AI Search is not available in 'centralindia'" in e for e in errors)
-    assert any("chat model gpt-4.1-mini version 2025-04-14 with deployment type Standard" in e for e in errors)
+    assert any("chat model gpt-5-mini version 2025-08-07 with deployment type Standard" in e for e in errors)
     assert any("embedding capacity 30K TPM" in w for w in warnings)
 
 
 def test_cli_exit_codes(capsys):
     assert v.main(["-e", "dev", "-q"]) == 0
-    assert v.main(["-e", "dev", "-q", "--set", "searchSku=free"]) == 1
-    assert "searchSku='free' is not allowed" in capsys.readouterr().err
+    assert v.main(["-e", "dev", "-q", "--set", "searchSku=premium"]) == 1
+    assert "searchSku='premium' is not allowed" in capsys.readouterr().err
     assert v.main(["-e", "missing"]) == 2
+
+
+def test_demo_preset_uses_the_cheapest_options():
+    values = v.load_values(ARM / "parameters" / "demo.parameters.json", [], PARAMS)
+    assert values["searchSku"] == "free" and values["semanticSearch"] == "disabled"
+    assert values["existingAppServicePlanName"] and values["storageSku"] == "Standard_LRS"
+    assert values["enableDiagnostics"] is False and values["authMode"] == "password"
+    assert values["chatModelName"] == "gpt-5-mini" and values["openAiLocation"] == "southindia"
+    assert values["embeddingModelName"] == "text-embedding-3-small" and values["embeddingLocation"] == "eastus"
+    assert values["solutionPrefix"] == "chatbot" and values["shortResourceNames"] is True
+
+
+@pytest.mark.parametrize("overrides, message", [
+    ({"searchSku": "free", "searchReplicaCount": 2}, "no replicas or partitions"),
+    ({"searchSku": "free", "semanticSearch": "free"}, "no semantic ranker"),
+])
+def test_free_tier_rules(overrides, message):
+    errors = v.validate_static(dev_values(**overrides), PARAMS)
+    assert any(message in e for e in errors), errors
+
+
+def test_region_check_rejects_a_second_free_search_service():
+    base = fake_az()
+
+    def run(args):
+        if args[:2] == ["resource", "list"]:
+            return [{"name": "someone-else-search", "sku": {"name": "free"}}]
+        return base(args)
+
+    values = dev_values(searchSku="free", semanticSearch="disabled")
+    errors, _ = v.validate_region(values, PARAMS, az=run)
+    assert any("already has a Free search service" in e for e in errors)
+
+
+def test_embedding_model_is_checked_in_its_own_region():
+    base = fake_az()
+
+    def run(args):
+        if args[:3] == ["cognitiveservices", "model", "list"] and args[-1] == "eastus":
+            return []
+        return base(args)
+
+    errors, _ = v.validate_region(dev_values(embeddingLocation="eastus"), PARAMS, az=run)
+    assert any("embedding model" in e and "'eastus'" in e for e in errors)
+    assert not any("chat model" in e for e in errors)

@@ -17,7 +17,7 @@
     docsButton: $("docs-button"), dialog: $("docs-dialog"), uploadForm: $("upload-form"),
     file: $("file"), uploadKey: $("upload-key"), uploadButton: $("upload-button"),
     uploadStatus: $("upload-status"), docList: $("doc-list"), indexerStatus: $("indexer-status"),
-    refreshDocs: $("refresh-docs"),
+    refreshDocs: $("refresh-docs"), signOut: $("sign-out"),
   };
 
   const storage = {
@@ -139,6 +139,10 @@
     }
     let body = null;
     try { body = await response.json(); } catch { /* not JSON */ }
+    if (response.status === 401 && body && body.error && body.error.code === "sign_in_required") {
+      window.location.replace("/login.html"); // demo sign-in expired
+      throw new Error("Please sign in.");
+    }
     if (!response.ok) {
       const message = body && body.error && body.error.message;
       throw new Error(message || `The server returned an error (${response.status}).`);
@@ -274,11 +278,18 @@
     }
   });
 
+  els.signOut.addEventListener("click", async () => {
+    try { await fetch("/api/logout", { method: "POST" }); } catch { /* signed out locally anyway */ }
+    storage.remove(STORE_KEY);
+    window.location.replace("/login.html");
+  });
+
   // ------------------------------------------------------------------ start
   api("/api/config").then((cfg) => {
     els.title.textContent = cfg.title;
     els.subtitle.textContent = cfg.subtitle;
     els.docsButton.hidden = !cfg.uploadEnabled;
+    els.signOut.hidden = cfg.authMode !== "password";
     els.uploadForm.dataset.maxMb = String(cfg.maxUploadMb);
   }).catch(() => { /* the static title stays */ });
 

@@ -27,11 +27,15 @@ CHUNK_OVERLAP = 300
 # Definitions
 # --------------------------------------------------------------------------------------
 def _aoai_parameters(s: Settings) -> dict:
-    return {
-        "resourceUri": s.openai_endpoint,
+    params = {
+        "resourceUri": s.embedding_resource_url,
         "deploymentId": s.embedding_deployment,
         "modelName": s.embedding_model,
     }
+    # Without a key the search service uses its managed identity (Basic tier and higher).
+    if s.embedding_api_key:
+        params["apiKey"] = s.embedding_api_key
+    return params
 
 
 def index_definition(s: Settings) -> dict:
@@ -74,8 +78,9 @@ def datasource_definition(s: Settings) -> dict:
     return {
         "name": s.search_datasource,
         "type": "azureblob",
-        # A resource ID (no key) makes the search service connect with its managed identity.
-        "credentials": {"connectionString": f"ResourceId={s.storage_resource_id};"},
+        # A resource ID (no key) makes the search service connect with its managed identity. A Free
+        # search service has no identity and gets a key-based connection string from Key Vault.
+        "credentials": {"connectionString": s.search_datasource_connection or f"ResourceId={s.storage_resource_id};"},
         "container": {"name": s.storage_container},
         "dataDeletionDetectionPolicy": {
             "@odata.type": "#Microsoft.Azure.Search.NativeBlobSoftDeleteDeletionDetectionPolicy"
@@ -159,11 +164,14 @@ class SearchClient:
 
     def _request(self, method: str, path: str, *, json: Any = None, ok: tuple[int, ...] = (200, 201, 202, 204)) -> httpx.Response:
         url = f"{self.settings.search_endpoint}/{path}"
-        try:
-            token = self._token()
-        except Exception as exc:  # azure.identity raises ClientAuthenticationError and friends
-            raise UpstreamError(f"Could not get a Microsoft Entra token for Azure AI Search: {exc}") from exc
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json"}
+        if self.settings.search_api_key:  # Free tier: no Microsoft Entra ID, key from Key Vault
+            headers["api-key"] = self.settings.search_api_key
+        else:
+            try:
+                headers["Authorization"] = f"Bearer {self._token()}"
+            except Exception as exc:  # azure.identity raises ClientAuthenticationError and friends
+                raise UpstreamError(f"Could not get a Microsoft Entra token for Azure AI Search: {exc}") from exc
         try:
             response = self._http.request(method, url, params={"api-version": self.settings.search_api_version},
                                           json=json, headers=headers)

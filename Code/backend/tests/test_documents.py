@@ -33,6 +33,12 @@ def test_settings_from_env():
                            "ALLOW_DOCUMENT_UPLOAD": "False", "CHAT_TEMPERATURE": "", "RATE_LIMIT_PER_MINUTE": "bad"})
     assert s.mode == "azure" and s.openai_endpoint == "https://x.openai.azure.com"
     assert s.search_top_k == 20 and s.allow_document_upload is False
-    assert s.chat_temperature == 0.2 and s.rate_limit_per_minute == 20
+    assert s.chat_temperature is None and s.chat_reasoning_effort == "low" and s.rate_limit_per_minute == 20
     assert settings_from_env({}).mode == "local"
     assert settings_from_env({"CHATBOT_MODE": "AZURE"}).missing_azure_settings()
+
+
+def test_unresolved_key_vault_references_are_not_secrets():
+    ref = "@Microsoft.KeyVault(VaultName=kv;SecretName=x)"
+    s = settings_from_env({"DEMO_PASSWORD": ref, "AZURE_SEARCH_API_KEY": ref, "AZURE_OPENAI_EMBEDDING_KEY": " k "})
+    assert s.demo_password == "" and s.search_api_key == "" and s.embedding_api_key == "k"

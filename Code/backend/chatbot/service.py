@@ -63,6 +63,12 @@ class SearchSetup:
             try:
                 ensure_search_resources(self.client)
                 self.state, self.detail = "ready", ""
+                # Index files that arrived while the app was down (for example the demo's sample
+                # documents, uploaded by the deploy script before the restart).
+                try:
+                    self.client.run_indexer()
+                except ChatbotError as exc:
+                    log.warning("Could not start the indexer after setup: %s", exc.message)
                 return
             except ChatbotError as exc:
                 self.detail = exc.message

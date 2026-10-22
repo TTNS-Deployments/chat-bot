@@ -21,6 +21,13 @@ SAMPLE_DOCS_DIR = REPO_ROOT / "Data" / "sample_docs"
 ALLOWED_EXTENSIONS = (".pdf", ".docx", ".pptx", ".xlsx", ".txt", ".md", ".html", ".htm", ".csv", ".json")
 
 
+def _secret(value: str | None) -> str:
+    """A secret app setting. App Service passes an unresolved Key Vault reference through as the
+    literal text "@Microsoft.KeyVault(...)"; treat that as not set, never as the secret."""
+    value = (value or "").strip()
+    return "" if value.startswith("@Microsoft.KeyVault(") else value
+
+
 def _bool(value: str | None, default: bool) -> bool:
     if value is None or value == "":
         return default
@@ -48,15 +55,20 @@ class Settings:
     mode: str = "local"  # local | azure
 
     openai_endpoint: str = ""
-    openai_api_version: str = "2024-10-21"
+    openai_api_version: str = "2025-04-01-preview"
     chat_deployment: str = "chat"
-    chat_temperature: float | None = 0.2
-    chat_max_tokens: int = 800
+    chat_reasoning_effort: str = "low"  # minimal | low | medium | high, or "none" for non-reasoning models
+    chat_temperature: float | None = None  # only sent to non-reasoning models
+    chat_max_tokens: int = 2000  # reasoning tokens count towards this limit
+    embedding_endpoint: str = ""
+    embedding_api_key: str = field(default="", repr=False)
     embedding_deployment: str = "embedding"
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
 
     search_endpoint: str = ""
+    search_api_key: str = field(default="", repr=False)
+    search_datasource_connection: str = field(default="", repr=False)
     search_index: str = "documents-index"
     search_semantic_config: str = ""
     search_api_version: str = "2024-07-01"
@@ -70,6 +82,9 @@ class Settings:
     upload_api_key: str = field(default="", repr=False)
     max_upload_mb: int = 16
 
+    auth_mode: str = "none"  # none | password
+    demo_password: str = field(default="", repr=False)
+
     max_history_turns: int = 6
     max_source_chars: int = 12000
     rate_limit_per_minute: int = 20
@@ -79,6 +94,10 @@ class Settings:
     @property
     def is_azure(self) -> bool:
         return self.mode == "azure"
+
+    @property
+    def embedding_resource_url(self) -> str:
+        return self.embedding_endpoint or self.openai_endpoint
 
     @property
     def search_datasource(self) -> str:
@@ -110,12 +129,17 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
         openai_endpoint=e.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/"),
         openai_api_version=e.get("AZURE_OPENAI_API_VERSION") or Settings.openai_api_version,
         chat_deployment=e.get("AZURE_OPENAI_CHAT_DEPLOYMENT") or Settings.chat_deployment,
+        chat_reasoning_effort=(e.get("CHAT_REASONING_EFFORT") or Settings.chat_reasoning_effort).lower(),
         chat_temperature=_float(e.get("CHAT_TEMPERATURE"), Settings.chat_temperature),
         chat_max_tokens=_int(e.get("CHAT_MAX_TOKENS"), Settings.chat_max_tokens),
+        embedding_endpoint=e.get("AZURE_OPENAI_EMBEDDING_ENDPOINT", "").rstrip("/"),
+        embedding_api_key=_secret(e.get("AZURE_OPENAI_EMBEDDING_KEY")),
         embedding_deployment=e.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT") or Settings.embedding_deployment,
         embedding_model=e.get("AZURE_OPENAI_EMBEDDING_MODEL") or Settings.embedding_model,
         embedding_dimensions=_int(e.get("AZURE_OPENAI_EMBEDDING_DIMENSIONS"), Settings.embedding_dimensions),
         search_endpoint=e.get("AZURE_SEARCH_ENDPOINT", "").rstrip("/"),
+        search_api_key=_secret(e.get("AZURE_SEARCH_API_KEY")),
+        search_datasource_connection=_secret(e.get("AZURE_SEARCH_DATASOURCE_CONNECTION")),
         search_index=e.get("AZURE_SEARCH_INDEX") or Settings.search_index,
         search_semantic_config=e.get("AZURE_SEARCH_SEMANTIC_CONFIG", ""),
         search_api_version=e.get("AZURE_SEARCH_API_VERSION") or Settings.search_api_version,
@@ -125,6 +149,8 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
         storage_resource_id=e.get("AZURE_STORAGE_RESOURCE_ID", ""),
         allow_document_upload=_bool(e.get("ALLOW_DOCUMENT_UPLOAD"), True),
         upload_api_key=e.get("UPLOAD_API_KEY", ""),
+        auth_mode=(e.get("AUTH_MODE") or "none").lower(),
+        demo_password=_secret(e.get("DEMO_PASSWORD")),
         max_upload_mb=_int(e.get("MAX_UPLOAD_MB"), Settings.max_upload_mb),
         max_history_turns=_int(e.get("MAX_HISTORY_TURNS"), Settings.max_history_turns),
         max_source_chars=_int(e.get("MAX_SOURCE_CHARS"), Settings.max_source_chars),

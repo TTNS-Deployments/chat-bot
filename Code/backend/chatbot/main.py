@@ -2,6 +2,7 @@
 
     GET    /healthz                 health probe (App Service health check)
     GET    /api/config              title, subtitle and features for the page
+    POST   /api/login, /api/logout  demo sign-in with a shared password (AUTH_MODE=password)
     POST   /api/chat                ask a question (with the conversation so far)
     GET    /api/documents           list documents and indexing status      (X-Upload-Key)
     POST   /api/documents           upload a document                      (X-Upload-Key)
@@ -21,11 +22,12 @@ from typing import Literal
 
 from fastapi import FastAPI, File, Header, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from . import SUBTITLE, TITLE, __version__
+from .auth import COOKIE_NAME, PUBLIC_PATHS, PasswordGate
 from .config import FRONTEND_DIR, Settings, get_settings
 from .documents import safe_name
 from .errors import ChatbotError, NotConfigured, UpstreamError
@@ -53,6 +55,10 @@ class ChatRequest(BaseModel):
         if not value.strip():
             raise ValueError("message must not be blank")
         return value.strip()
+
+
+class LoginRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
 
 
 class CitationOut(BaseModel):
@@ -131,6 +137,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
     components = components or build_components(settings)
     setup = SearchSetup(components.search)
     limiter = RateLimiter(settings.rate_limit_per_minute)
+    gate = PasswordGate(settings.demo_password) if settings.auth_mode == "password" else None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -145,8 +152,21 @@ def create_app(settings: Settings | None = None, components: Components | None =
     app.state.search_setup = setup
 
     @app.middleware("http")
+    async def require_sign_in(request: Request, call_next):
+        path = request.url.path
+        if gate is None or path in PUBLIC_PATHS or gate.valid(request.cookies.get(COOKIE_NAME)):
+            return await call_next(request)
+        if path.startswith("/api/"):
+            return _error(401, "sign_in_required", "Please sign in.")
+        return RedirectResponse("/login.html", status_code=303)
+
+    @app.middleware("http")
     async def security_headers(request: Request, call_next):
         response = await call_next(request)
+        path = request.url.path
+        if path == "/" or path.endswith(".html") or path.startswith("/api/"):
+            # Pages and answers must not be served from the browser cache (for example after sign-out).
+            response.headers.setdefault("Cache-Control", "no-store")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         if not request.url.path.startswith("/api/docs"):
@@ -185,8 +205,32 @@ def create_app(settings: Settings | None = None, components: Components | None =
 
     @app.get("/api/config", tags=["chat"])
     def config():
-        return {"title": TITLE, "subtitle": SUBTITLE, "mode": settings.mode,
+        return {"title": TITLE, "subtitle": SUBTITLE, "mode": settings.mode, "authMode": settings.auth_mode,
                 "uploadEnabled": settings.allow_document_upload, "maxUploadMb": settings.max_upload_mb}
+
+    # ---- demo sign-in ----
+    @app.post("/api/login", tags=["sign-in"])
+    def login(body: LoginRequest, request: Request):
+        if gate is None:
+            return _error(404, "not_enabled", "Sign-in is not enabled for this deployment.")
+        if not gate.configured:
+            raise NotConfigured("Sign-in is not configured yet: the demo password is missing or not readable from Key Vault.")
+        client = client_ip(request)
+        if gate.locked(client):
+            return _error(429, "locked", "Too many wrong passwords. Try again in 15 minutes.")
+        if not gate.check(client, body.password):
+            return _error(403, "invalid_password", "The password is not correct.")
+        response = JSONResponse({"signedIn": True})
+        https = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+        response.set_cookie(COOKIE_NAME, gate.issue(), max_age=gate.session_seconds, httponly=True,
+                            secure=https, samesite="lax", path="/")
+        return response
+
+    @app.post("/api/logout", tags=["sign-in"])
+    def logout():
+        response = JSONResponse({"signedIn": False})
+        response.delete_cookie(COOKIE_NAME, path="/")
+        return response
 
     # ---- chat ----
     @app.post("/api/chat", response_model=ChatResponse, tags=["chat"],

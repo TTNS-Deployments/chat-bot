@@ -141,3 +141,30 @@ def test_token_failure_is_an_upstream_error():
     client = SearchClient(settings(), no_token, http=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200))))
     with pytest.raises(UpstreamError, match="Microsoft Entra token"):
         client.search("q", 1)
+
+
+def test_free_tier_key_mode_uses_keys_everywhere():
+    s = settings(search_api_key="search-key", search_datasource_connection="DefaultEndpointsProtocol=https;AccountName=st;AccountKey=k",
+                 embedding_api_key="embed-key", embedding_endpoint="https://embed.openai.azure.com")
+    vectorizer = index_definition(s)["vectorSearch"]["vectorizers"][0]["azureOpenAIParameters"]
+    assert vectorizer["resourceUri"] == "https://embed.openai.azure.com" and vectorizer["apiKey"] == "embed-key"
+    assert skillset_definition(s)["skills"][1]["apiKey"] == "embed-key"
+    assert datasource_definition(s)["credentials"]["connectionString"].startswith("DefaultEndpointsProtocol=")
+    seen = {}
+
+    def handler(request):
+        seen.update(request.headers)
+        return httpx.Response(200, json={"value": []})
+
+    def no_token():
+        raise AssertionError("no Entra token in key mode")
+
+    SearchClient(s, no_token, http=httpx.Client(transport=httpx.MockTransport(handler))).search("q", 1)
+    assert seen["api-key"] == "search-key" and "authorization" not in seen
+
+
+def test_managed_identity_mode_sends_no_keys():
+    s = settings(embedding_endpoint="https://embed.openai.azure.com")
+    assert "apiKey" not in index_definition(s)["vectorSearch"]["vectorizers"][0]["azureOpenAIParameters"]
+    assert "apiKey" not in skillset_definition(s)["skills"][1]
+    assert index_definition(s)["vectorSearch"]["vectorizers"][0]["azureOpenAIParameters"]["resourceUri"] == "https://embed.openai.azure.com"

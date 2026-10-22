@@ -39,15 +39,23 @@ def bad_request(message):
     return openai.BadRequestError(message, response=httpx.Response(400, request=REQUEST), body=None)
 
 
-def test_sends_deployment_and_limits():
+def test_reasoning_model_gets_effort_and_no_temperature():
     m, calls = model(response())
     assert m.complete([{"role": "user", "content": "hi"}]) == "Answer [1]"
     sent = calls.calls[0]
-    assert sent["model"] == "chat" and sent["temperature"] == 0.2 and sent["max_completion_tokens"] == 800
+    assert sent["model"] == "chat" and sent["reasoning_effort"] == "low" and sent["max_completion_tokens"] == 2000
+    assert "temperature" not in sent
 
 
-def test_retries_without_temperature_for_reasoning_models():
-    m, calls = model(bad_request("Unsupported value: 'temperature' does not support 0.2"), response("ok"), response("again"))
+def test_non_reasoning_model_gets_temperature():
+    m, calls = model(response(), chat_reasoning_effort="none", chat_temperature=0.2)
+    m.complete([])
+    assert calls.calls[0]["temperature"] == 0.2 and "reasoning_effort" not in calls.calls[0]
+
+
+def test_retries_without_temperature_when_rejected():
+    m, calls = model(bad_request("Unsupported value: 'temperature' does not support 0.2"), response("ok"), response("again"),
+                     chat_reasoning_effort="none", chat_temperature=0.2)
     assert m.complete([]) == "ok"
     assert "temperature" not in calls.calls[1]
     m.complete([])

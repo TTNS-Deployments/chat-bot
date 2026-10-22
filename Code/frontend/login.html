@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · AI Based Chatbot</title>
+  <meta name="description" content="AI based chatbot platform">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+  <script src="login.js" defer></script>
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <img src="favicon.svg" alt="" width="48" height="48">
+    <h1>AI Based Chatbot</h1>
+    <p class="subtitle">AI based chatbot platform</p>
+    <form id="login-form" autocomplete="off">
+      <label for="password">Demo password</label>
+      <input id="password" type="password" required maxlength="200" autocomplete="current-password" autofocus>
+      <button type="submit" class="primary" id="sign-in">Sign in</button>
+      <p id="login-error" class="status bad" role="alert"></p>
+    </form>
+  </main>
+</body>
+</html>
