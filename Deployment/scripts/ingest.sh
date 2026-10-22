@@ -2,9 +2,14 @@
 # Add documents to a deployed chatbot: upload files to the `documents` container and start the
 # search indexer, which splits, embeds and indexes them.
 #
-#   Deployment/scripts/ingest.sh -g <resource-group> [-n <deployment-name>] <file-or-folder>...
+#   Deployment/scripts/ingest.sh -g <resource-group> [-n <deployment-name>] [--account-key] [--restart] <file-or-folder>...
 #
 # -n defaults to the latest chatbot deployment in the resource group.
+# --account-key  upload with the storage account key (from the management API) instead of your Entra
+#                ID login. Use it in Azure Cloud Shell, where Storage tokens are not available. Needs
+#                shared-key access on the storage account (the demo preset turns it on).
+# --restart      restart the web app afterwards; it starts the indexer on startup. Useful when the
+#                indexer cannot be started directly (Cloud Shell, or a Free-tier search service).
 #
 # Example: Deployment/scripts/ingest.sh -g rg-chatbot-dev ./policies ./faq.pdf
 #
@@ -13,14 +18,16 @@
 # needs those two roles on the storage account and search service.
 set -euo pipefail
 
-RG="" DEPLOYMENT=""
+RG="" DEPLOYMENT="" USE_KEY=0 RESTART=0
 EXTENSIONS="pdf docx pptx xlsx txt md html htm csv json"
 PATHS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -g|--resource-group) RG="$2"; shift 2 ;;
     -n|--deployment-name) DEPLOYMENT="$2"; shift 2 ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    --account-key) USE_KEY=1; shift ;;
+    --restart) RESTART=1; shift ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     -*) echo "Unknown option $1 (see --help)" >&2; exit 1 ;;
     *) PATHS+=("$1"); shift ;;
   esac
@@ -36,6 +43,8 @@ ACCOUNT="$(out storageAccountName)"
 CONTAINER="$(out documentsContainer)"
 SEARCH="$(out searchEndpoint)"
 INDEXER="$(out searchIndexerName)"
+WEB_APP="$(out webAppName)"
+SEARCH_USES_KEYS="$(out searchUsesKeys 2>/dev/null || echo false)"
 [[ -n "$ACCOUNT" ]] || { echo "Deployment $DEPLOYMENT not found in $RG (use -n for another environment)." >&2; exit 1; }
 
 supported() {
@@ -68,11 +77,30 @@ retry() {
 }
 
 echo "==> Uploading ${#FILES[@]} file(s) to $ACCOUNT/$CONTAINER"
+if [[ $USE_KEY -eq 1 ]]; then
+  KEY="$(az storage account keys list -g "$RG" -n "$ACCOUNT" --query "[0].value" -o tsv)"
+fi
 for f in "${FILES[@]}"; do
   echo "  $(basename "$f")"
-  retry az storage blob upload --auth-mode login --account-name "$ACCOUNT" -c "$CONTAINER" \
-    -f "$f" -n "$(basename "$f")" --overwrite -o none --only-show-errors
+  if [[ $USE_KEY -eq 1 ]]; then
+    AZURE_STORAGE_KEY="$KEY" az storage blob upload --account-name "$ACCOUNT" -c "$CONTAINER" \
+      -f "$f" -n "$(basename "$f")" --overwrite -o none --only-show-errors
+  else
+    retry az storage blob upload --auth-mode login --account-name "$ACCOUNT" -c "$CONTAINER" \
+      -f "$f" -n "$(basename "$f")" --overwrite -o none --only-show-errors
+  fi
 done
+
+if [[ $RESTART -eq 1 ]]; then
+  echo "==> Restarting web app $WEB_APP; it starts the indexer when it comes back"
+  az webapp restart -g "$RG" -n "$WEB_APP" -o none
+  echo "Done. Documents are searchable a few minutes after the web app is back."
+  exit 0
+fi
+if [[ $USE_KEY -eq 1 || "${SEARCH_USES_KEYS,,}" == "true" ]]; then
+  echo "Done. The indexer picks the documents up within 30 minutes. To index them now, re-run with --restart."
+  exit 0
+fi
 
 echo "==> Starting indexer $INDEXER"
 run_indexer() {

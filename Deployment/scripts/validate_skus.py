@@ -125,7 +125,12 @@ def validate_static(values: dict, template: dict) -> list[str]:
         errors.append("solutionPrefix: use 3-8 lowercase letters or digits (it becomes part of storage and Key Vault names)")
 
     sku, replicas, partitions = get("searchSku"), get("searchReplicaCount"), get("searchPartitionCount")
-    if isinstance(replicas, int) and isinstance(partitions, int):
+    if sku == "free":
+        if replicas != 1 or partitions != 1:
+            errors.append("searchSku=free: the Free tier has no replicas or partitions to choose; set both counts to 1")
+        if get("semanticSearch") != "disabled":
+            errors.append("searchSku=free: the Free tier has no semantic ranker; set semanticSearch=disabled")
+    elif isinstance(replicas, int) and isinstance(partitions, int):
         if sku == "basic":
             if replicas > 3:
                 errors.append(f"searchReplicaCount={replicas}: the basic tier allows 1-3 replicas")
@@ -192,6 +197,7 @@ def validate_region(values: dict, template: dict, az: AzRunner = run_az, locatio
     aoai_region = get("openAiLocation")
     if not isinstance(aoai_region, str) or aoai_region.startswith("["):
         aoai_region = region
+    embed_region = get("embeddingLocation") or aoai_region
 
     checks = [
         ("Microsoft.Search", "searchServices", region, "Azure AI Search"),
@@ -199,6 +205,7 @@ def validate_region(values: dict, template: dict, az: AzRunner = run_az, locatio
         ("Microsoft.Storage", "storageAccounts", region, "Storage"),
         ("Microsoft.KeyVault", "vaults", region, "Key Vault"),
         ("Microsoft.CognitiveServices", "accounts", aoai_region, "Azure OpenAI"),
+        ("Microsoft.CognitiveServices", "accounts", embed_region, "Azure OpenAI (embedding)"),
     ]
     for namespace, rtype, where, label in checks:
         if not where:
@@ -211,38 +218,57 @@ def validate_region(values: dict, template: dict, az: AzRunner = run_az, locatio
         if regions and _norm(where) not in regions:
             errors.append(f"{label} is not available in '{where}'")
 
-    if aoai_region:
+    model_cache: dict[str, list | None] = {}
+
+    def models_in(where: str) -> list | None:
+        if where not in model_cache:
+            try:
+                model_cache[where] = az(["cognitiveservices", "model", "list", "-l", where]) or []
+            except RuntimeError as exc:
+                warnings.append(f"Could not list Azure OpenAI models in {where}: {exc}")
+                model_cache[where] = None
+        return model_cache[where]
+
+    for prefix, where in (("chat", aoai_region), ("embedding", embed_region)):
+        if not where:
+            continue
+        name, version, sku = get(f"{prefix}ModelName"), get(f"{prefix}ModelVersion"), get(f"{prefix}DeploymentSku")
+        models = models_in(where)
+        if models is not None and not model_offered(models, name, version, sku):
+            errors.append(
+                f"{prefix} model {name} version {version} with deployment type {sku} is not offered in "
+                f"'{where}'. List what is: az cognitiveservices model list -l {where} -o table"
+            )
         try:
-            models = az(["cognitiveservices", "model", "list", "-l", aoai_region]) or []
-        except RuntimeError as exc:
-            warnings.append(f"Could not list Azure OpenAI models in {aoai_region}: {exc}")
-            models = None
-        if models is not None:
-            for prefix in ("chat", "embedding"):
-                name, version, sku = get(f"{prefix}ModelName"), get(f"{prefix}ModelVersion"), get(f"{prefix}DeploymentSku")
-                if not model_offered(models, name, version, sku):
-                    errors.append(
-                        f"{prefix} model {name} version {version} with deployment type {sku} is not offered in "
-                        f"'{aoai_region}'. List what is: az cognitiveservices model list -l {aoai_region} -o table"
-                    )
-        try:
-            usages = az(["cognitiveservices", "usage", "list", "-l", aoai_region]) or []
+            usages = az(["cognitiveservices", "usage", "list", "-l", where]) or []
         except RuntimeError:
             usages = []
-        by_name = {u.get("name", {}).get("value"): u for u in usages}
-        for prefix in ("chat", "embedding"):
-            key = f"OpenAI.{get(f'{prefix}DeploymentSku')}.{get(f'{prefix}ModelName')}"
-            usage = by_name.get(key)
-            if usage is None:
-                continue
+        key = f"OpenAI.{sku}.{name}"
+        usage = next((u for u in usages if u.get("name", {}).get("value") == key), None)
+        want = get(f"{prefix}Capacity")
+        if usage is not None and isinstance(want, int):
             free = float(usage.get("limit", 0)) - float(usage.get("currentValue", 0))
-            want = get(f"{prefix}Capacity")
-            if isinstance(want, int) and free < want:
+            if free < want:
                 warnings.append(
-                    f"{prefix} capacity {want}K TPM may exceed the free quota for {key} in {aoai_region} "
+                    f"{prefix} capacity {want}K TPM may exceed the free quota for {key} in {where} "
                     f"({free:g}K left). Lower {prefix}Capacity or request quota. (Ignore this when redeploying "
                     "over an existing deployment: its current capacity is counted as used.)"
                 )
+
+    if get("searchSku") == "free":
+        try:
+            services = az(["resource", "list", "--resource-type", "Microsoft.Search/searchServices"]) or []
+        except RuntimeError as exc:
+            warnings.append(f"Could not list existing search services: {exc}")
+            services = []
+        free = [x.get("name") for x in services if (x.get("sku") or {}).get("name") == "free"]
+        prefix = str(get("solutionPrefix") or "")
+        others = [n for n in free if not str(n).startswith(f"{prefix}-")]
+        if others:
+            errors.append(
+                f"searchSku=free: this subscription already has a Free search service ({', '.join(others)}), and only "
+                "one is allowed. Use searchSku=basic, or delete the other service."
+            )
     return errors, warnings
 
 

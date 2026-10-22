@@ -17,6 +17,11 @@
 
 .EXAMPLE
     ./Deployment/scripts/deploy.ps1 -ResourceGroup rg-chatbot-prod -Environment prod -Set searchReplicaCount=3,chatCapacity=200
+
+.NOTES
+    -Param NAME=VALUE passes template parameters that are not printed or validated, for secrets such as
+    uploadApiKey and demoPassword. The demo deployment from Azure Cloud Shell (run-from-package code
+    deployment with management calls only) is in deploy.sh: Deployment/scripts/deploy.sh -e demo.
 #>
 [CmdletBinding()]
 param(
@@ -26,6 +31,7 @@ param(
     [string] $Subscription,
     [string] $DeploymentName,
     [string[]] $Set = @(),
+    [string[]] $Param = @(),
     [switch] $Seed,
     [switch] $SkipInfra,
     [switch] $SkipCode,
@@ -58,6 +64,7 @@ if ($Subscription) { & az account set --subscription $Subscription; Assert-AzSuc
 if ($LASTEXITCODE -ne 0) { throw "Run 'az login' first." }
 Write-Information "Subscription: $(& az account show --query name -o tsv)"
 
+$script:NewUploadKey = ''
 $Deployment = if ($DeploymentName) { $DeploymentName } else { "chatbot-$Environment" }
 if ($SkipInfra) {
     & az deployment group show -g $ResourceGroup -n $Deployment -o none 2>$null
@@ -94,17 +101,21 @@ if (-not $SkipInfra) {
     & az group create -n $ResourceGroup -l $Location -o none
     Assert-AzSucceeded 'Creating the resource group'
 
-    # Keep the upload key stable across redeployments: reuse the one in Key Vault if there is one.
+    # Secrets go in a private file, not on the command line. Key Vault keeps the stored upload key and
+    # demo password when they are not passed again, so only the first deployment generates a key.
     $secretFile = New-TemporaryFile
     try {
         $secretParams = @{ parameters = @{} }
-        $oldVault = & az deployment group show -g $ResourceGroup -n $Deployment --query properties.outputs.keyVaultName.value -o tsv 2>$null
-        if ($LASTEXITCODE -eq 0 -and $oldVault) {
-            $key = & az keyvault secret show --vault-name $oldVault -n upload-api-key --query value -o tsv 2>$null
-            if ($LASTEXITCODE -eq 0 -and $key) {
-                $secretParams.parameters.uploadApiKey = @{ value = $key }
-                Write-Information "Reusing the existing upload key from $oldVault"
-            }
+        foreach ($item in ($Param | ForEach-Object { $_ -split ',(?=[A-Za-z][A-Za-z0-9]*=)' } | Where-Object { $_ })) {
+            $name, $value = $item -split '=', 2
+            $secretParams.parameters[$name] = @{ value = $value }
+        }
+        & az deployment group show -g $ResourceGroup -n $Deployment -o none 2>$null
+        if ($LASTEXITCODE -ne 0 -and -not $secretParams.parameters.ContainsKey('uploadApiKey')) {
+            $bytes = [byte[]]::new(24)
+            [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+            $script:NewUploadKey = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+            $secretParams.parameters.uploadApiKey = @{ value = $script:NewUploadKey }
         }
         $secretParams | ConvertTo-Json -Depth 5 | Set-Content -Path $secretFile -Encoding utf8
 
@@ -160,4 +171,9 @@ if ($Seed) {
 
 Write-Information ''
 Write-Information "Done. Chat page: $WebUrl"
-Write-Information "Upload key:      az keyvault secret show --vault-name $Vault -n upload-api-key --query value -o tsv"
+if ($script:NewUploadKey) {
+    Write-Information "Upload key:      $($script:NewUploadKey)"
+    Write-Information "                 Save it now. It is stored in Key Vault $Vault as upload-api-key."
+} else {
+    Write-Information "Upload key:      Key Vault $Vault, secret upload-api-key (unchanged)."
+}
