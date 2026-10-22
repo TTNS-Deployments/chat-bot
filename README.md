@@ -2,8 +2,6 @@
 
 **AI based chatbot platform**
 
-Author: Vaibhav Chaudhary
-
 AI Based Chatbot answers questions from your organisation's own documents. Users chat on a web page. Every answer is written by Azure OpenAI from passages that Azure AI Search found in your documents, and it lists the sources it used so users can check them.
 
 The solution is a deployable template. You choose the tier (SKU) of every Azure service in one parameters file and deploy with one command or the **Deploy to Azure** button.
@@ -26,7 +24,7 @@ The solution is a deployable template. You choose the tier (SKU) of every Azure 
 
 ## Current State of the Repository
 
-### Before this build (audit of commit `037d3b0`, 2026-10-14)
+### Before this build 
 
 The repository held an infrastructure-only design for a *private* hub-and-spoke deployment. It had no application and no Deploy to Azure button.
 
@@ -39,7 +37,6 @@ The repository held an infrastructure-only design for a *private* hub-and-spoke 
 | `app/README.md` | "Place the chatbot application here" | Planned: no code |
 | `index.html`, `imgs/banner.svg`, `imgs/architecture.svg` | GitHub Pages summary and diagrams of the private design | Static |
 
-**Missing compared with [Call-Center-Analysis](https://github.com/TTNS-Deployments/Call-Center-Analysis):** application code and tests, a single `azuredeploy.json` with `createUiDefinition.json` and the Deploy to Azure button, per-environment SKU parameter files, CI and deploy workflows, `Documents/`, `LICENSE`/`SECURITY.md`/`SUPPORT.md`/`CODE_OF_CONDUCT.md`, `.gitignore`, `.env.example`, `Makefile`, `Dockerfile`.
 
 ### What this build adds
 
@@ -54,29 +51,6 @@ The old private-network files were removed (they remain in git history), because
 | Deployment | `deploy.sh`, `deploy.ps1`, `ingest.sh`, `ingest.ps1`, `package.py`, `build_arm.sh`; Deploy to Azure button; GitHub Actions CI and Deploy | Scripts tested against a mock Azure CLI; shellcheck and PSScriptAnalyzer clean |
 | Docs and repo | `Documents/` (architecture, deployment guide, configuration, local development), `Deployment/README.md`, licence and policy files, dev container, pre-commit hook | Done |
 
-### Change log
-
-| Date | Change |
-|---|---|
-| 2026-10-14 | Audited the repository against Call-Center-Analysis. Removed the private hub-and-spoke templates and scripts (`templates/01-11`, `deploy.sh`, `deploy-openai.sh`, `scripts/common.sh`, `config/skus.env`, `index.html`, `app/README.md`, `imgs/banner.svg`, old `imgs/architecture.svg`). |
-| 2026-10-22 | Added the `demo` preset for Azure Cloud Shell: cheapest options (shared App Service plan, Free AI Search), `gpt-5-mini` in South India, embeddings in East US, shared-password sign-in, `chatbot-*` resource names, run-from-package code deployment with management calls only. All presets now use `gpt-5-mini`. |
-| 2026-10-14 | Added the application (backend, chat page, tests), Bicep infrastructure and compiled ARM template, portal wizard and Deploy to Azure button, SKU presets and validator, bash and PowerShell deployment and ingestion scripts, CI/CD workflows, documentation, licence and policy files, dev container. |
-
-### Differences from Call-Center-Analysis
-
-| Topic | Call-Center-Analysis | This repository | Why |
-|---|---|---|---|
-| Infrastructure source | Hand-written ARM JSON | Bicep modules compiled to the same `Deployment/ARM/azuredeploy.json` | Requested; the button still uses the compiled ARM file. CI and a pre-commit hook keep it in sync. |
-| Deploy button | Infrastructure only | Infrastructure, plus optional code deployment from this public repository (default on) | One click gives a working chatbot. Code-only redeploys still use the scripts. |
-| Scripts | Bash only | Bash and PowerShell, plus a SKU validator both share | Requested |
-| Web framework | Django with Entra ID sign-in and app roles | FastAPI, no sign-in (App Service Authentication can be switched on) | A chat API and one page need no portal framework. See [security notes](#security-notes). |
-| Processing | Event Grid → Storage queue → Azure Functions | AI Search indexer with integrated vectorization, started by the app after upload | The search service chunks and embeds documents itself; there is less to operate. |
-| State | Cosmos DB | None on the server; conversation kept in the browser | Stateless app, nothing personal stored server-side |
-| Key-based auth | Left enabled for tools | Disabled on Azure OpenAI, AI Search and Storage | Requested: managed identities instead of keys wherever possible |
-| Extras | — | `.devcontainer/`, `ingest` scripts, a local mode for the chat page | Requested or needed for the chatbot |
-| Not carried over | Power BI `Analytics/`, `docker-compose.yml`, Entra setup script | — | Not relevant to the chatbot |
-
-<br/>
 
 ## Architecture
 
