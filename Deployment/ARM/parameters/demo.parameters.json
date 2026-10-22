@@ -1,0 +1,106 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "solutionPrefix": {
+      "value": "chatbot"
+    },
+    "environmentName": {
+      "value": "demo"
+    },
+    "shortResourceNames": {
+      "value": true
+    },
+    "location": {
+      "value": "centralindia"
+    },
+    "existingAppServicePlanName": {
+      "value": "ccai-demo-gqausd-web-plan"
+    },
+    "appServicePlanSku": {
+      "value": "B1"
+    },
+    "appServiceInstanceCount": {
+      "value": 1
+    },
+    "openAiLocation": {
+      "value": "southindia"
+    },
+    "openAiSku": {
+      "value": "S0"
+    },
+    "chatModelName": {
+      "value": "gpt-5-mini"
+    },
+    "chatModelVersion": {
+      "value": "2025-08-07"
+    },
+    "chatDeploymentSku": {
+      "value": "GlobalStandard"
+    },
+    "chatCapacity": {
+      "value": 20
+    },
+    "chatReasoningEffort": {
+      "value": "low"
+    },
+    "embeddingLocation": {
+      "value": "eastus"
+    },
+    "embeddingModelName": {
+      "value": "text-embedding-3-small"
+    },
+    "embeddingModelVersion": {
+      "value": "1"
+    },
+    "embeddingDeploymentSku": {
+      "value": "Standard"
+    },
+    "embeddingCapacity": {
+      "value": 10
+    },
+    "searchSku": {
+      "value": "free"
+    },
+    "searchReplicaCount": {
+      "value": 1
+    },
+    "searchPartitionCount": {
+      "value": 1
+    },
+    "semanticSearch": {
+      "value": "disabled"
+    },
+    "storageSku": {
+      "value": "Standard_LRS"
+    },
+    "keyVaultSku": {
+      "value": "standard"
+    },
+    "logAnalyticsRetentionDays": {
+      "value": 30
+    },
+    "logAnalyticsDailyQuotaGb": {
+      "value": 1
+    },
+    "enableDiagnostics": {
+      "value": false
+    },
+    "allowStorageSharedKey": {
+      "value": true
+    },
+    "allowDocumentUpload": {
+      "value": true
+    },
+    "authMode": {
+      "value": "password"
+    },
+    "tags": {
+      "value": {
+        "owner": "TTNS",
+        "project": "ai-based-chatbot",
+        "preset": "demo"
+      }
+    }
+  }
+}

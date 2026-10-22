@@ -46,6 +46,10 @@
             {
               "label": "Production",
               "value": "prod"
+            },
+            {
+              "label": "Demo",
+              "value": "demo"
             }
           ],
           "required": true
@@ -72,7 +76,7 @@
             "name": "openAiLocation",
             "type": "Microsoft.Common.DropDown",
             "label": "Azure OpenAI region",
-            "defaultValue": "eastus2",
+            "defaultValue": "East US 2",
             "toolTip": "Must offer both models with the chosen deployment types. All other resources use the resource group region.",
             "constraints": {
               "allowedValues": [
@@ -127,7 +131,7 @@
                 "name": "chatModelName",
                 "type": "Microsoft.Common.TextBox",
                 "label": "Model",
-                "defaultValue": "gpt-4.1-mini",
+                "defaultValue": "gpt-5-mini",
                 "toolTip": "Chat model that writes the answers.",
                 "constraints": {
                   "required": true,
@@ -140,12 +144,45 @@
                 "name": "chatModelVersion",
                 "type": "Microsoft.Common.TextBox",
                 "label": "Model version",
-                "defaultValue": "2025-04-14",
+                "defaultValue": "2025-08-07",
                 "toolTip": "Must be a version offered in the Azure OpenAI region (az cognitiveservices model list -l <region> -o table).",
                 "constraints": {
                   "required": true,
                   "regex": "^[0-9][0-9A-Za-z.-]{0,31}$",
                   "validationMessage": "A model version, for example 2025-04-14."
+                },
+                "visible": true
+              },
+              {
+                "name": "chatReasoningEffort",
+                "type": "Microsoft.Common.DropDown",
+                "label": "Reasoning effort",
+                "defaultValue": "Low",
+                "toolTip": "For reasoning models such as gpt-5-mini. Lower is faster and cheaper. Choose None for models that do not reason.",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Minimal",
+                      "value": "minimal"
+                    },
+                    {
+                      "label": "Low",
+                      "value": "low"
+                    },
+                    {
+                      "label": "Medium",
+                      "value": "medium"
+                    },
+                    {
+                      "label": "High",
+                      "value": "high"
+                    },
+                    {
+                      "label": "None (non-reasoning model)",
+                      "value": "none"
+                    }
+                  ],
+                  "required": true
                 },
                 "visible": true
               },
@@ -197,6 +234,59 @@
             "label": "Embedding model",
             "visible": true,
             "elements": [
+              {
+                "name": "embeddingLocation",
+                "type": "Microsoft.Common.DropDown",
+                "label": "Embedding model region",
+                "defaultValue": "Same as the chat model",
+                "toolTip": "Another region creates a second Azure OpenAI resource there for the embedding model.",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Same as the chat model",
+                      "value": "same"
+                    },
+                    {
+                      "label": "Central India",
+                      "value": "centralindia"
+                    },
+                    {
+                      "label": "South India",
+                      "value": "southindia"
+                    },
+                    {
+                      "label": "East US",
+                      "value": "eastus"
+                    },
+                    {
+                      "label": "East US 2",
+                      "value": "eastus2"
+                    },
+                    {
+                      "label": "Sweden Central",
+                      "value": "swedencentral"
+                    },
+                    {
+                      "label": "West Europe",
+                      "value": "westeurope"
+                    },
+                    {
+                      "label": "UK South",
+                      "value": "uksouth"
+                    },
+                    {
+                      "label": "Japan East",
+                      "value": "japaneast"
+                    },
+                    {
+                      "label": "Australia East",
+                      "value": "australiaeast"
+                    }
+                  ],
+                  "required": true
+                },
+                "visible": true
+              },
               {
                 "name": "embeddingModelName",
                 "type": "Microsoft.Common.DropDown",
@@ -284,9 +374,13 @@
             "type": "Microsoft.Common.DropDown",
             "label": "Search tier",
             "defaultValue": "basic",
-            "toolTip": "Basic suits most document sets up to a few GB. Standard tiers add storage and scale.",
+            "toolTip": "Free costs nothing but allows one per subscription, 50 MB and 3 indexes, and has no semantic ranker or managed identity (keys in Key Vault are used instead). Basic suits most document sets up to a few GB.",
             "constraints": {
               "allowedValues": [
+                {
+                  "label": "Free (one per subscription, 50 MB, no semantic ranker)",
+                  "value": "free"
+                },
                 {
                   "label": "Basic",
                   "value": "basic"
@@ -307,6 +401,15 @@
               "required": true
             },
             "visible": true
+          },
+          {
+            "name": "freeInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[equals(steps('search').searchSku, 'free')]",
+            "options": {
+              "icon": "Info",
+              "text": "The Free tier has no replicas, partitions or semantic ranker to choose. Only one Free search service is allowed per subscription."
+            }
           },
           {
             "name": "replicasBasic",
@@ -336,7 +439,7 @@
             "constraints": {
               "required": true
             },
-            "visible": "[not(equals(steps('search').searchSku, 'basic'))]"
+            "visible": "[not(or(equals(steps('search').searchSku, 'basic'), equals(steps('search').searchSku, 'free')))]"
           },
           {
             "name": "partitionsBasic",
@@ -398,12 +501,12 @@
               ],
               "required": true
             },
-            "visible": "[not(equals(steps('search').searchSku, 'basic'))]"
+            "visible": "[not(or(equals(steps('search').searchSku, 'basic'), equals(steps('search').searchSku, 'free')))]"
           },
           {
             "name": "scaleLimit",
             "type": "Microsoft.Common.InfoBox",
-            "visible": "[and(not(equals(steps('search').searchSku, 'basic')), greater(mul(steps('search').replicasStandard, steps('search').partitionsStandard), 36))]",
+            "visible": "[and(not(or(equals(steps('search').searchSku, 'basic'), equals(steps('search').searchSku, 'free'))), greater(mul(steps('search').replicasStandard, steps('search').partitionsStandard), 36))]",
             "options": {
               "icon": "Error",
               "text": "Replicas × partitions is above 36, which Azure AI Search does not allow. Lower one of them."
@@ -432,7 +535,7 @@
               ],
               "required": true
             },
-            "visible": true
+            "visible": "[not(equals(steps('search').searchSku, 'free'))]"
           }
         ]
       },
@@ -671,13 +774,61 @@
             "visible": true
           },
           {
-            "name": "uploadKey",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": true,
+            "name": "uploadApiKey",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Upload key",
+              "confirmPassword": "Confirm upload key"
+            },
+            "toolTip": "Needed to add documents on the chat page. Stored in Key Vault as upload-api-key.",
+            "constraints": {
+              "required": true,
+              "regex": "^.{12,128}$",
+              "validationMessage": "12 to 128 characters."
+            },
             "options": {
-              "icon": "Info",
-              "text": "A new upload key is generated on every deployment and stored in Key Vault (secret upload-api-key). Read it there after the deployment to add documents."
-            }
+              "hideConfirmation": false
+            },
+            "visible": true
+          },
+          {
+            "name": "authMode",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Who can open the chat page",
+            "defaultValue": "Anyone with the address",
+            "toolTip": "A shared password needs no Microsoft Entra ID app registration.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Anyone with the address",
+                  "value": "none"
+                },
+                {
+                  "label": "Shared password",
+                  "value": "password"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "demoPassword",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Shared password",
+              "confirmPassword": "Confirm shared password"
+            },
+            "toolTip": "Stored in Key Vault as demo-password.",
+            "constraints": {
+              "required": true,
+              "regex": "^.{8,200}$",
+              "validationMessage": "8 to 200 characters."
+            },
+            "options": {
+              "hideConfirmation": false
+            },
+            "visible": "[equals(steps('app').authMode, 'password')]"
           }
         ]
       }
@@ -696,9 +847,9 @@
       "embeddingDeploymentSku": "[steps('ai').embedding.embeddingDeploymentSku]",
       "embeddingCapacity": "[steps('ai').embedding.embeddingCapacity]",
       "searchSku": "[steps('search').searchSku]",
-      "searchReplicaCount": "[if(equals(steps('search').searchSku, 'basic'), steps('search').replicasBasic, steps('search').replicasStandard)]",
-      "searchPartitionCount": "[if(equals(steps('search').searchSku, 'basic'), steps('search').partitionsBasic, steps('search').partitionsStandard)]",
-      "semanticSearch": "[steps('search').semanticSearch]",
+      "searchReplicaCount": "[if(equals(steps('search').searchSku, 'basic'), steps('search').replicasBasic, if(equals(steps('search').searchSku, 'free'), 1, steps('search').replicasStandard))]",
+      "searchPartitionCount": "[if(equals(steps('search').searchSku, 'basic'), steps('search').partitionsBasic, if(equals(steps('search').searchSku, 'free'), 1, steps('search').partitionsStandard))]",
+      "semanticSearch": "[if(equals(steps('search').searchSku, 'free'), 'disabled', steps('search').semanticSearch)]",
       "appServicePlanSku": "[steps('hosting').appServicePlanSku]",
       "appServiceInstanceCount": "[steps('hosting').appServiceInstanceCount]",
       "storageSku": "[steps('hosting').storageSku]",
@@ -708,7 +859,12 @@
       "deployAppCode": "[steps('app').deployAppCode]",
       "repositoryUrl": "[steps('app').repositoryUrl]",
       "repositoryBranch": "[steps('app').repositoryBranch]",
-      "allowDocumentUpload": "[steps('app').allowDocumentUpload]"
+      "allowDocumentUpload": "[steps('app').allowDocumentUpload]",
+      "chatReasoningEffort": "[steps('ai').chat.chatReasoningEffort]",
+      "embeddingLocation": "[if(equals(steps('ai').embedding.embeddingLocation, 'same'), '', steps('ai').embedding.embeddingLocation)]",
+      "uploadApiKey": "[steps('app').uploadApiKey]",
+      "authMode": "[steps('app').authMode]",
+      "demoPassword": "[if(equals(steps('app').authMode, 'password'), steps('app').demoPassword, '')]"
     }
   }
 }

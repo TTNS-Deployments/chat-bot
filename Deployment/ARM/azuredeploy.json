@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "14923307937365471363"
+      "templateHash": "5125189804778696451"
     },
     "description": "AI Based Chatbot: Azure OpenAI, Azure AI Search, Blob Storage, App Service, Key Vault and monitoring. All service-to-service access uses managed identities."
   },
@@ -26,7 +26,8 @@
         "dev",
         "test",
         "uat",
-        "prod"
+        "prod",
+        "demo"
       ],
       "metadata": {
         "description": "Environment name, used in resource names and tags."
@@ -44,6 +45,13 @@
       "defaultValue": {},
       "metadata": {
         "description": "Extra tags applied to every resource."
+      }
+    },
+    "shortResourceNames": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Short resource names (<prefix>-web-<suffix>, <prefix>-openai-<suffix>, <prefix>-logs, ...) instead of <prefix>-<environment>-<suffix>-<type>. The demo uses them with the prefix \"chatbot\"."
       }
     },
     "openAiLocation": {
@@ -65,16 +73,30 @@
     },
     "chatModelName": {
       "type": "string",
-      "defaultValue": "gpt-4.1-mini",
+      "defaultValue": "gpt-5-mini",
       "metadata": {
         "description": "Chat model that writes the answers."
       }
     },
     "chatModelVersion": {
       "type": "string",
-      "defaultValue": "2025-04-14",
+      "defaultValue": "2025-08-07",
       "metadata": {
         "description": "Chat model version."
+      }
+    },
+    "chatReasoningEffort": {
+      "type": "string",
+      "defaultValue": "low",
+      "allowedValues": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "metadata": {
+        "description": "Reasoning effort sent to reasoning models such as gpt-5-mini (lower is faster and cheaper). Use none for models that do not reason."
       }
     },
     "chatDeploymentSku": {
@@ -96,6 +118,13 @@
       "maxValue": 1000,
       "metadata": {
         "description": "Chat deployment capacity, in thousands of tokens per minute (TPM)."
+      }
+    },
+    "embeddingLocation": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Region for the embedding model. Empty means the same Azure OpenAI account and region as the chat model; another region creates a second Azure OpenAI account there."
       }
     },
     "embeddingModelName": {
@@ -141,13 +170,14 @@
       "type": "string",
       "defaultValue": "basic",
       "allowedValues": [
+        "free",
         "basic",
         "standard",
         "standard2",
         "standard3"
       ],
       "metadata": {
-        "description": "Azure AI Search tier."
+        "description": "Azure AI Search tier. free: one per subscription, 50 MB, no semantic ranker, and no managed identity (keys in Key Vault are used instead)."
       }
     },
     "searchReplicaCount": {
@@ -221,6 +251,20 @@
         "description": "Log Analytics retention in days."
       }
     },
+    "enableDiagnostics": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Send diagnostic logs from App Service, AI Search and Azure OpenAI to Log Analytics. Application Insights is always on."
+      }
+    },
+    "allowStorageSharedKey": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Allow shared-key (account key) access to the storage account. Needed when deploying code from Azure Cloud Shell (run-from-package upload). A Free-tier search service turns it on anyway."
+      }
+    },
     "logAnalyticsDailyQuotaGb": {
       "type": "int",
       "defaultValue": 1,
@@ -258,6 +302,13 @@
         "description": "Number of web app instances."
       }
     },
+    "existingAppServicePlanName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of an existing Linux App Service plan in this resource group and region to put the web app on. Empty creates a new plan from appServicePlanSku. An existing plan is never changed."
+      }
+    },
     "deployAppCode": {
       "type": "bool",
       "defaultValue": false,
@@ -288,9 +339,34 @@
     },
     "uploadApiKey": {
       "type": "securestring",
-      "defaultValue": "[newGuid()]",
+      "defaultValue": "",
       "metadata": {
-        "description": "Key that protects document upload. Generated on every deployment unless you pass one; stored in Key Vault as upload-api-key."
+        "description": "Key that protects document upload, stored in Key Vault as upload-api-key. Leave empty on a redeploy to keep the stored key."
+      }
+    },
+    "authMode": {
+      "type": "string",
+      "defaultValue": "none",
+      "allowedValues": [
+        "none",
+        "password"
+      ],
+      "metadata": {
+        "description": "Who can open the chat page. none: anyone with the address. password: a shared demo password (no Microsoft Entra ID app registration needed)."
+      }
+    },
+    "demoPassword": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Shared password for authMode password, stored in Key Vault as demo-password. Leave empty on a redeploy to keep the stored password."
+      }
+    },
+    "appPackageUrl": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "URL (with SAS) of a run-from-package zip that includes the dependencies. Set by the Cloud Shell code deployment so that infrastructure redeploys keep the running code."
       }
     },
     "deployerPrincipalId": {
@@ -313,24 +389,24 @@
     }
   },
   "variables": {
+    "prefix": "[toLower(parameters('solutionPrefix'))]",
     "suffix": "[take(uniqueString(resourceGroup().id, parameters('solutionPrefix'), parameters('environmentName')), 6)]",
-    "baseName": "[format('{0}-{1}-{2}', toLower(parameters('solutionPrefix')), parameters('environmentName'), variables('suffix'))]",
+    "baseName": "[format('{0}-{1}-{2}', variables('prefix'), parameters('environmentName'), variables('suffix'))]",
     "allTags": "[union(parameters('tags'), createObject('solution', 'ai-based-chatbot', 'environment', parameters('environmentName')))]",
-    "names": {
-      "logAnalytics": "[format('{0}-log', variables('baseName'))]",
-      "appInsights": "[format('{0}-appi', variables('baseName'))]",
-      "storage": "[take(toLower(format('{0}{1}{2}st', parameters('solutionPrefix'), parameters('environmentName'), variables('suffix'))), 24)]",
-      "keyVault": "[take(format('{0}-kv-{1}', toLower(parameters('solutionPrefix')), variables('suffix')), 24)]",
-      "search": "[format('{0}-srch', variables('baseName'))]",
-      "openAi": "[format('{0}-aoai', variables('baseName'))]",
-      "plan": "[format('{0}-web-plan', variables('baseName'))]",
-      "webApp": "[format('{0}-web', variables('baseName'))]"
-    },
+    "names": "[if(parameters('shortResourceNames'), createObject('logAnalytics', format('{0}-logs', variables('prefix')), 'appInsights', format('{0}-insights', variables('prefix')), 'storage', take(format('{0}st{1}', variables('prefix'), variables('suffix')), 24), 'keyVault', take(format('{0}-kv-{1}', variables('prefix'), variables('suffix')), 24), 'search', format('{0}-search-{1}', variables('prefix'), variables('suffix')), 'openAi', format('{0}-openai-{1}', variables('prefix'), variables('suffix')), 'embedding', format('{0}-embed-{1}', variables('prefix'), variables('suffix')), 'plan', format('{0}-plan-{1}', variables('prefix'), variables('suffix')), 'webApp', format('{0}-web-{1}', variables('prefix'), variables('suffix'))), createObject('logAnalytics', format('{0}-log', variables('baseName')), 'appInsights', format('{0}-appi', variables('baseName')), 'storage', take(format('{0}{1}{2}st', variables('prefix'), parameters('environmentName'), variables('suffix')), 24), 'keyVault', take(format('{0}-kv-{1}', variables('prefix'), variables('suffix')), 24), 'search', format('{0}-srch', variables('baseName')), 'openAi', format('{0}-aoai', variables('baseName')), 'embedding', format('{0}-embed', variables('baseName')), 'plan', format('{0}-web-plan', variables('baseName')), 'webApp', format('{0}-web', variables('baseName'))))]",
     "documentsContainer": "documents",
     "searchIndexName": "documents-index",
     "chatDeploymentName": "chat",
     "embeddingDeploymentName": "embedding",
-    "embeddingDimensions": "[if(equals(parameters('embeddingModelName'), 'text-embedding-3-large'), 3072, 1536)]"
+    "embeddingDimensions": "[if(equals(parameters('embeddingModelName'), 'text-embedding-3-large'), 3072, 1536)]",
+    "searchUsesKeys": "[equals(parameters('searchSku'), 'free')]",
+    "semanticEnabled": "[and(not(variables('searchUsesKeys')), not(equals(parameters('semanticSearch'), 'disabled')))]",
+    "separateEmbedding": "[and(not(empty(parameters('embeddingLocation'))), not(equals(parameters('embeddingLocation'), parameters('openAiLocation'))))]",
+    "embeddingAccountName": "[if(variables('separateEmbedding'), variables('names').embedding, variables('names').openAi)]",
+    "keyVaultRef": "[format('VaultName={0}', variables('names').keyVault)]",
+    "passwordSettings": "[if(equals(parameters('authMode'), 'password'), createObject('DEMO_PASSWORD', format('@Microsoft.KeyVault({0};SecretName=demo-password)', variables('keyVaultRef'))), createObject())]",
+    "searchKeySettings": "[if(variables('searchUsesKeys'), createObject('AZURE_SEARCH_API_KEY', format('@Microsoft.KeyVault({0};SecretName=search-admin-key)', variables('keyVaultRef')), 'AZURE_SEARCH_DATASOURCE_CONNECTION', format('@Microsoft.KeyVault({0};SecretName=search-storage-connection)', variables('keyVaultRef')), 'AZURE_OPENAI_EMBEDDING_KEY', format('@Microsoft.KeyVault({0};SecretName=search-embedding-key)', variables('keyVaultRef'))), createObject())]",
+    "packageSettings": "[if(empty(parameters('appPackageUrl')), createObject(), createObject('WEBSITE_RUN_FROM_PACKAGE', parameters('appPackageUrl'), 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'false', 'PYTHONPATH', '/home/site/wwwroot/.packages'))]"
   },
   "resources": [
     {
@@ -462,6 +538,9 @@
           },
           "containerName": {
             "value": "[variables('documentsContainer')]"
+          },
+          "allowSharedKeyAccess": {
+            "value": "[or(parameters('allowStorageSharedKey'), variables('searchUsesKeys'))]"
           }
         },
         "template": {
@@ -471,7 +550,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "8846933756797274037"
+              "templateHash": "1489611822828026629"
             }
           },
           "parameters": {
@@ -489,6 +568,9 @@
             },
             "containerName": {
               "type": "string"
+            },
+            "allowSharedKeyAccess": {
+              "type": "bool"
             }
           },
           "resources": [
@@ -507,7 +589,7 @@
                 "minimumTlsVersion": "TLS1_2",
                 "supportsHttpsTrafficOnly": true,
                 "allowBlobPublicAccess": false,
-                "allowSharedKeyAccess": false,
+                "allowSharedKeyAccess": "[parameters('allowSharedKeyAccess')]",
                 "defaultToOAuthAuthentication": true,
                 "publicNetworkAccess": "Enabled"
               }
@@ -583,6 +665,9 @@
           },
           "uploadApiKey": {
             "value": "[parameters('uploadApiKey')]"
+          },
+          "demoPassword": {
+            "value": "[parameters('demoPassword')]"
           }
         },
         "template": {
@@ -592,7 +677,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "14621667528344716047"
+              "templateHash": "11039385571559713962"
             }
           },
           "parameters": {
@@ -610,10 +695,10 @@
             },
             "uploadApiKey": {
               "type": "securestring"
+            },
+            "demoPassword": {
+              "type": "securestring"
             }
-          },
-          "variables": {
-            "uploadKeySecretName": "upload-api-key"
           },
           "resources": [
             {
@@ -635,12 +720,26 @@
               }
             },
             {
+              "condition": "[not(empty(parameters('uploadApiKey')))]",
               "type": "Microsoft.KeyVault/vaults/secrets",
               "apiVersion": "2025-05-01",
-              "name": "[format('{0}/{1}', parameters('name'), variables('uploadKeySecretName'))]",
+              "name": "[format('{0}/{1}', parameters('name'), 'upload-api-key')]",
               "properties": {
                 "value": "[parameters('uploadApiKey')]",
                 "contentType": "Key for POST /api/documents (header X-Upload-Key)"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('demoPassword')))]",
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2025-05-01",
+              "name": "[format('{0}/{1}', parameters('name'), 'demo-password')]",
+              "properties": {
+                "value": "[parameters('demoPassword')]",
+                "contentType": "Shared password for the demo sign-in page"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
@@ -651,10 +750,6 @@
             "name": {
               "type": "string",
               "value": "[parameters('name')]"
-            },
-            "uploadKeySecretName": {
-              "type": "string",
-              "value": "[variables('uploadKeySecretName')]"
             }
           }
         }
@@ -685,6 +780,15 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
           },
+          "enableDiagnostics": {
+            "value": "[parameters('enableDiagnostics')]"
+          },
+          "allowKeyAccess": {
+            "value": "[and(variables('searchUsesKeys'), not(variables('separateEmbedding')))]"
+          },
+          "includeChat": {
+            "value": true
+          },
           "chatDeploymentName": {
             "value": "[variables('chatDeploymentName')]"
           },
@@ -699,6 +803,9 @@
           },
           "chatCapacity": {
             "value": "[parameters('chatCapacity')]"
+          },
+          "includeEmbedding": {
+            "value": "[not(variables('separateEmbedding'))]"
           },
           "embeddingDeploymentName": {
             "value": "[variables('embeddingDeploymentName')]"
@@ -723,7 +830,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "17497053701747484678"
+              "templateHash": "11663890059764571377"
             }
           },
           "parameters": {
@@ -742,35 +849,57 @@
             "logAnalyticsWorkspaceId": {
               "type": "string"
             },
+            "enableDiagnostics": {
+              "type": "bool"
+            },
+            "allowKeyAccess": {
+              "type": "bool"
+            },
+            "includeChat": {
+              "type": "bool"
+            },
             "chatDeploymentName": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": "chat"
             },
             "chatModelName": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": ""
             },
             "chatModelVersion": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": ""
             },
             "chatDeploymentSku": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": "GlobalStandard"
             },
             "chatCapacity": {
-              "type": "int"
+              "type": "int",
+              "defaultValue": 1
+            },
+            "includeEmbedding": {
+              "type": "bool"
             },
             "embeddingDeploymentName": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": "embedding"
             },
             "embeddingModelName": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": ""
             },
             "embeddingModelVersion": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": ""
             },
             "embeddingDeploymentSku": {
-              "type": "string"
+              "type": "string",
+              "defaultValue": "GlobalStandard"
             },
             "embeddingCapacity": {
-              "type": "int"
+              "type": "int",
+              "defaultValue": 1
             }
           },
           "resources": [
@@ -790,10 +919,11 @@
               "properties": {
                 "customSubDomainName": "[parameters('name')]",
                 "publicNetworkAccess": "Enabled",
-                "disableLocalAuth": true
+                "disableLocalAuth": "[not(parameters('allowKeyAccess'))]"
               }
             },
             {
+              "condition": "[parameters('includeChat')]",
               "type": "Microsoft.CognitiveServices/accounts/deployments",
               "apiVersion": "2025-09-01",
               "name": "[format('{0}/{1}', parameters('name'), parameters('chatDeploymentName'))]",
@@ -814,6 +944,7 @@
               ]
             },
             {
+              "condition": "[parameters('includeEmbedding')]",
               "type": "Microsoft.CognitiveServices/accounts/deployments",
               "apiVersion": "2025-09-01",
               "name": "[format('{0}/{1}', parameters('name'), parameters('embeddingDeploymentName'))]",
@@ -835,6 +966,245 @@
               ]
             },
             {
+              "condition": "[parameters('enableDiagnostics')]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]",
+              "name": "to-log-analytics",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "categoryGroup": "allLogs",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "value": "[parameters('name')]"
+            },
+            "endpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('name')), '2025-09-01').endpoint]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'monitoring')]"
+      ]
+    },
+    {
+      "condition": "[variables('separateEmbedding')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "openai-embedding",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('embeddingLocation')]"
+          },
+          "tags": {
+            "value": "[variables('allTags')]"
+          },
+          "name": {
+            "value": "[variables('names').embedding]"
+          },
+          "sku": {
+            "value": "[parameters('openAiSku')]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": "[parameters('enableDiagnostics')]"
+          },
+          "allowKeyAccess": {
+            "value": "[variables('searchUsesKeys')]"
+          },
+          "includeChat": {
+            "value": false
+          },
+          "includeEmbedding": {
+            "value": true
+          },
+          "embeddingDeploymentName": {
+            "value": "[variables('embeddingDeploymentName')]"
+          },
+          "embeddingModelName": {
+            "value": "[parameters('embeddingModelName')]"
+          },
+          "embeddingModelVersion": {
+            "value": "[parameters('embeddingModelVersion')]"
+          },
+          "embeddingDeploymentSku": {
+            "value": "[parameters('embeddingDeploymentSku')]"
+          },
+          "embeddingCapacity": {
+            "value": "[parameters('embeddingCapacity')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "11663890059764571377"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object"
+            },
+            "name": {
+              "type": "string"
+            },
+            "sku": {
+              "type": "string"
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string"
+            },
+            "enableDiagnostics": {
+              "type": "bool"
+            },
+            "allowKeyAccess": {
+              "type": "bool"
+            },
+            "includeChat": {
+              "type": "bool"
+            },
+            "chatDeploymentName": {
+              "type": "string",
+              "defaultValue": "chat"
+            },
+            "chatModelName": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "chatModelVersion": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "chatDeploymentSku": {
+              "type": "string",
+              "defaultValue": "GlobalStandard"
+            },
+            "chatCapacity": {
+              "type": "int",
+              "defaultValue": 1
+            },
+            "includeEmbedding": {
+              "type": "bool"
+            },
+            "embeddingDeploymentName": {
+              "type": "string",
+              "defaultValue": "embedding"
+            },
+            "embeddingModelName": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "embeddingModelVersion": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "embeddingDeploymentSku": {
+              "type": "string",
+              "defaultValue": "GlobalStandard"
+            },
+            "embeddingCapacity": {
+              "type": "int",
+              "defaultValue": 1
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2025-09-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "OpenAI",
+              "sku": {
+                "name": "[parameters('sku')]"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "customSubDomainName": "[parameters('name')]",
+                "publicNetworkAccess": "Enabled",
+                "disableLocalAuth": "[not(parameters('allowKeyAccess'))]"
+              }
+            },
+            {
+              "condition": "[parameters('includeChat')]",
+              "type": "Microsoft.CognitiveServices/accounts/deployments",
+              "apiVersion": "2025-09-01",
+              "name": "[format('{0}/{1}', parameters('name'), parameters('chatDeploymentName'))]",
+              "sku": {
+                "name": "[parameters('chatDeploymentSku')]",
+                "capacity": "[parameters('chatCapacity')]"
+              },
+              "properties": {
+                "model": {
+                  "format": "OpenAI",
+                  "name": "[parameters('chatModelName')]",
+                  "version": "[parameters('chatModelVersion')]"
+                },
+                "versionUpgradeOption": "OnceCurrentVersionExpired"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+              ]
+            },
+            {
+              "condition": "[parameters('includeEmbedding')]",
+              "type": "Microsoft.CognitiveServices/accounts/deployments",
+              "apiVersion": "2025-09-01",
+              "name": "[format('{0}/{1}', parameters('name'), parameters('embeddingDeploymentName'))]",
+              "sku": {
+                "name": "[parameters('embeddingDeploymentSku')]",
+                "capacity": "[parameters('embeddingCapacity')]"
+              },
+              "properties": {
+                "model": {
+                  "format": "OpenAI",
+                  "name": "[parameters('embeddingModelName')]",
+                  "version": "[parameters('embeddingModelVersion')]"
+                },
+                "versionUpgradeOption": "OnceCurrentVersionExpired"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts/deployments', parameters('name'), parameters('chatDeploymentName'))]"
+              ]
+            },
+            {
+              "condition": "[parameters('enableDiagnostics')]",
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
               "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]",
@@ -908,6 +1278,9 @@
           },
           "logAnalyticsWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": "[parameters('enableDiagnostics')]"
           }
         },
         "template": {
@@ -917,7 +1290,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "2189446034197810663"
+              "templateHash": "18277908559583237430"
             }
           },
           "parameters": {
@@ -944,7 +1317,13 @@
             },
             "logAnalyticsWorkspaceId": {
               "type": "string"
+            },
+            "enableDiagnostics": {
+              "type": "bool"
             }
+          },
+          "variables": {
+            "isFree": "[equals(parameters('sku'), 'free')]"
           },
           "resources": [
             {
@@ -957,18 +1336,19 @@
                 "name": "[parameters('sku')]"
               },
               "identity": {
-                "type": "SystemAssigned"
+                "type": "[if(variables('isFree'), 'None', 'SystemAssigned')]"
               },
               "properties": {
-                "replicaCount": "[parameters('replicaCount')]",
-                "partitionCount": "[parameters('partitionCount')]",
+                "replicaCount": "[if(variables('isFree'), 1, parameters('replicaCount'))]",
+                "partitionCount": "[if(variables('isFree'), 1, parameters('partitionCount'))]",
                 "hostingMode": "Default",
                 "publicNetworkAccess": "enabled",
-                "disableLocalAuth": true,
-                "semanticSearch": "[parameters('semanticSearch')]"
+                "disableLocalAuth": "[not(variables('isFree'))]",
+                "semanticSearch": "[if(variables('isFree'), null(), parameters('semanticSearch'))]"
               }
             },
             {
+              "condition": "[parameters('enableDiagnostics')]",
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
               "scope": "[resourceId('Microsoft.Search/searchServices', parameters('name'))]",
@@ -1004,13 +1384,111 @@
             },
             "principalId": {
               "type": "string",
-              "value": "[reference(resourceId('Microsoft.Search/searchServices', parameters('name')), '2025-05-01', 'full').identity.principalId]"
+              "value": "[if(variables('isFree'), '', reference(resourceId('Microsoft.Search/searchServices', parameters('name')), '2025-05-01', 'full').identity.principalId)]"
             }
           }
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'monitoring')]"
+      ]
+    },
+    {
+      "condition": "[variables('searchUsesKeys')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "search-keys",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[variables('names').keyVault]"
+          },
+          "searchName": {
+            "value": "[variables('names').search]"
+          },
+          "storageName": {
+            "value": "[variables('names').storage]"
+          },
+          "embeddingAccountName": {
+            "value": "[variables('embeddingAccountName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "14549210236553683821"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string"
+            },
+            "searchName": {
+              "type": "string"
+            },
+            "storageName": {
+              "type": "string"
+            },
+            "embeddingAccountName": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2025-05-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'search-admin-key')]",
+              "properties": {
+                "value": "[listAdminKeys(resourceId('Microsoft.Search/searchServices', parameters('searchName')), '2025-05-01').primaryKey]"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2025-05-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'search-storage-connection')]",
+              "properties": {
+                "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', parameters('storageName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageName')), '2025-06-01').keys[0].value, environment().suffixes.storage)]"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2025-05-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'search-embedding-key')]",
+              "properties": {
+                "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', parameters('embeddingAccountName')), '2025-09-01').key1]"
+              }
+            }
+          ],
+          "outputs": {
+            "searchKeySecret": {
+              "type": "string",
+              "value": "search-admin-key"
+            },
+            "storageConnectionSecret": {
+              "type": "string",
+              "value": "search-storage-connection"
+            },
+            "embeddingKeySecret": {
+              "type": "string",
+              "value": "search-embedding-key"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'openai-embedding')]",
+        "[resourceId('Microsoft.Resources/deployments', 'keyvault')]",
+        "[resourceId('Microsoft.Resources/deployments', 'openai')]",
+        "[resourceId('Microsoft.Resources/deployments', 'search')]",
+        "[resourceId('Microsoft.Resources/deployments', 'storage')]"
       ]
     },
     {
@@ -1032,6 +1510,9 @@
           "planName": {
             "value": "[variables('names').plan]"
           },
+          "existingPlanName": {
+            "value": "[parameters('existingAppServicePlanName')]"
+          },
           "webAppName": {
             "value": "[variables('names').webApp]"
           },
@@ -1047,6 +1528,9 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
           },
+          "enableDiagnostics": {
+            "value": "[parameters('enableDiagnostics')]"
+          },
           "deployAppCode": {
             "value": "[parameters('deployAppCode')]"
           },
@@ -1057,22 +1541,7 @@
             "value": "[parameters('repositoryBranch')]"
           },
           "appSettings": {
-            "value": {
-              "CHATBOT_MODE": "azure",
-              "AZURE_OPENAI_ENDPOINT": "[reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value]",
-              "AZURE_OPENAI_CHAT_DEPLOYMENT": "[variables('chatDeploymentName')]",
-              "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "[variables('embeddingDeploymentName')]",
-              "AZURE_OPENAI_EMBEDDING_MODEL": "[parameters('embeddingModelName')]",
-              "AZURE_OPENAI_EMBEDDING_DIMENSIONS": "[string(variables('embeddingDimensions'))]",
-              "AZURE_SEARCH_ENDPOINT": "[reference(resourceId('Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.endpoint.value]",
-              "AZURE_SEARCH_INDEX": "[variables('searchIndexName')]",
-              "AZURE_SEARCH_SEMANTIC_CONFIG": "[if(equals(parameters('semanticSearch'), 'disabled'), '', 'default')]",
-              "AZURE_STORAGE_ACCOUNT_URL": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.blobEndpoint.value]",
-              "AZURE_STORAGE_CONTAINER": "[variables('documentsContainer')]",
-              "AZURE_STORAGE_RESOURCE_ID": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.id.value]",
-              "ALLOW_DOCUMENT_UPLOAD": "[string(parameters('allowDocumentUpload'))]",
-              "UPLOAD_API_KEY": "[format('@Microsoft.KeyVault(VaultName={0};SecretName={1})', reference(resourceId('Microsoft.Resources/deployments', 'keyvault'), '2025-04-01').outputs.name.value, reference(resourceId('Microsoft.Resources/deployments', 'keyvault'), '2025-04-01').outputs.uploadKeySecretName.value)]"
-            }
+            "value": "[union(createObject('CHATBOT_MODE', 'azure', 'AZURE_OPENAI_ENDPOINT', reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value, 'AZURE_OPENAI_API_VERSION', '2025-04-01-preview', 'AZURE_OPENAI_CHAT_DEPLOYMENT', variables('chatDeploymentName'), 'CHAT_REASONING_EFFORT', parameters('chatReasoningEffort'), 'AZURE_OPENAI_EMBEDDING_ENDPOINT', if(variables('separateEmbedding'), format('https://{0}.openai.azure.com/', variables('names').embedding), reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value), 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT', variables('embeddingDeploymentName'), 'AZURE_OPENAI_EMBEDDING_MODEL', parameters('embeddingModelName'), 'AZURE_OPENAI_EMBEDDING_DIMENSIONS', string(variables('embeddingDimensions')), 'AZURE_SEARCH_ENDPOINT', reference(resourceId('Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.endpoint.value, 'AZURE_SEARCH_INDEX', variables('searchIndexName'), 'AZURE_SEARCH_SEMANTIC_CONFIG', if(variables('semanticEnabled'), 'default', ''), 'AZURE_STORAGE_ACCOUNT_URL', reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.blobEndpoint.value, 'AZURE_STORAGE_CONTAINER', variables('documentsContainer'), 'AZURE_STORAGE_RESOURCE_ID', reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.id.value, 'ALLOW_DOCUMENT_UPLOAD', string(parameters('allowDocumentUpload')), 'UPLOAD_API_KEY', format('@Microsoft.KeyVault({0};SecretName=upload-api-key)', variables('keyVaultRef')), 'AUTH_MODE', parameters('authMode')), variables('passwordSettings'), variables('searchKeySettings'), variables('packageSettings'))]"
           }
         },
         "template": {
@@ -1082,7 +1551,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "12738108973786580033"
+              "templateHash": "8514506733139990000"
             }
           },
           "parameters": {
@@ -1093,6 +1562,9 @@
               "type": "object"
             },
             "planName": {
+              "type": "string"
+            },
+            "existingPlanName": {
               "type": "string"
             },
             "webAppName": {
@@ -1109,6 +1581,9 @@
             },
             "logAnalyticsWorkspaceId": {
               "type": "string"
+            },
+            "enableDiagnostics": {
+              "type": "bool"
             },
             "deployAppCode": {
               "type": "bool"
@@ -1139,10 +1614,13 @@
               "P2v3": "PremiumV3",
               "P3v3": "PremiumV3"
             },
-            "startupCommand": "gunicorn --chdir Code/backend --bind=0.0.0.0:8000 --timeout 120 --workers 2 --worker-class uvicorn.workers.UvicornWorker chatbot.main:app"
+            "useExistingPlan": "[not(empty(parameters('existingPlanName')))]",
+            "startupCommand": "python -m gunicorn --chdir Code/backend --bind=0.0.0.0:8000 --timeout 120 --workers 2 --worker-class uvicorn.workers.UvicornWorker chatbot.main:app",
+            "planId": "[if(variables('useExistingPlan'), resourceId('Microsoft.Web/serverfarms', parameters('existingPlanName')), resourceId('Microsoft.Web/serverfarms', parameters('planName')))]"
           },
           "resources": [
             {
+              "condition": "[not(variables('useExistingPlan'))]",
               "type": "Microsoft.Web/serverfarms",
               "apiVersion": "2025-03-01",
               "name": "[parameters('planName')]",
@@ -1169,7 +1647,7 @@
                 "type": "SystemAssigned"
               },
               "properties": {
-                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('planName'))]",
+                "serverFarmId": "[variables('planId')]",
                 "httpsOnly": true,
                 "siteConfig": {
                   "linuxFxVersion": "PYTHON|3.12",
@@ -1221,6 +1699,7 @@
               ]
             },
             {
+              "condition": "[parameters('enableDiagnostics')]",
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
               "scope": "[resourceId('Microsoft.Web/sites', parameters('webAppName'))]",
@@ -1270,7 +1749,6 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'keyvault')]",
         "[resourceId('Microsoft.Resources/deployments', 'monitoring')]",
         "[resourceId('Microsoft.Resources/deployments', 'openai')]",
         "[resourceId('Microsoft.Resources/deployments', 'search')]",
@@ -1302,6 +1780,9 @@
           "openAiName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.name.value]"
           },
+          "embeddingAccountName": {
+            "value": "[variables('embeddingAccountName')]"
+          },
           "searchName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.name.value]"
           },
@@ -1310,6 +1791,9 @@
           },
           "keyVaultName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'keyvault'), '2025-04-01').outputs.name.value]"
+          },
+          "searchUsesManagedIdentity": {
+            "value": "[not(variables('searchUsesKeys'))]"
           }
         },
         "template": {
@@ -1319,7 +1803,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "16314955757190551817"
+              "templateHash": "2707869671115848978"
             }
           },
           "parameters": {
@@ -1338,6 +1822,9 @@
             "openAiName": {
               "type": "string"
             },
+            "embeddingAccountName": {
+              "type": "string"
+            },
             "searchName": {
               "type": "string"
             },
@@ -1346,6 +1833,12 @@
             },
             "keyVaultName": {
               "type": "string"
+            },
+            "searchUsesManagedIdentity": {
+              "type": "bool",
+              "metadata": {
+                "description": "False for a Free-tier search service, which has no managed identity and is called with a key."
+              }
             }
           },
           "variables": {
@@ -1359,7 +1852,8 @@
               "keyVaultSecretsUser": "4633458b-17de-408a-b874-0445c86b69e6",
               "keyVaultSecretsOfficer": "b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
             },
-            "hasDeployer": "[not(empty(parameters('deployerPrincipalId')))]"
+            "hasDeployer": "[not(empty(parameters('deployerPrincipalId')))]",
+            "separateEmbedding": "[not(equals(parameters('embeddingAccountName'), parameters('openAiName')))]"
           },
           "resources": [
             {
@@ -1374,6 +1868,7 @@
               }
             },
             {
+              "condition": "[parameters('searchUsesManagedIdentity')]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
@@ -1385,6 +1880,7 @@
               }
             },
             {
+              "condition": "[parameters('searchUsesManagedIdentity')]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
@@ -1418,6 +1914,7 @@
               }
             },
             {
+              "condition": "[parameters('searchUsesManagedIdentity')]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageName'))]",
@@ -1429,10 +1926,11 @@
               }
             },
             {
+              "condition": "[parameters('searchUsesManagedIdentity')]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiName'))]",
-              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiName')), 'search', variables('roleIds').openAiUser)]",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('embeddingAccountName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('embeddingAccountName')), 'search', variables('roleIds').openAiUser)]",
               "properties": {
                 "principalId": "[parameters('searchPrincipalId')]",
                 "principalType": "ServicePrincipal",
@@ -1452,7 +1950,7 @@
               }
             },
             {
-              "condition": "[variables('hasDeployer')]",
+              "condition": "[and(variables('hasDeployer'), parameters('searchUsesManagedIdentity'))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
@@ -1464,7 +1962,7 @@
               }
             },
             {
-              "condition": "[variables('hasDeployer')]",
+              "condition": "[and(variables('hasDeployer'), parameters('searchUsesManagedIdentity'))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
@@ -1488,6 +1986,18 @@
               }
             },
             {
+              "condition": "[and(variables('hasDeployer'), variables('separateEmbedding'))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('embeddingAccountName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('embeddingAccountName')), 'deployer', variables('roleIds').openAiUser)]",
+              "properties": {
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "[parameters('deployerPrincipalType')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleIds').openAiUser)]"
+              }
+            },
+            {
               "condition": "[variables('hasDeployer')]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
@@ -1503,6 +2013,7 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'openai-embedding')]",
         "[resourceId('Microsoft.Resources/deployments', 'keyvault')]",
         "[resourceId('Microsoft.Resources/deployments', 'openai')]",
         "[resourceId('Microsoft.Resources/deployments', 'search')]",
@@ -1548,9 +2059,17 @@
       "type": "string",
       "value": "[format('{0}-indexer', variables('searchIndexName'))]"
     },
+    "searchUsesKeys": {
+      "type": "bool",
+      "value": "[variables('searchUsesKeys')]"
+    },
     "openAiEndpoint": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value]"
+    },
+    "embeddingEndpoint": {
+      "type": "string",
+      "value": "[if(variables('separateEmbedding'), format('https://{0}.openai.azure.com/', variables('names').embedding), reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value)]"
     },
     "chatDeployment": {
       "type": "string",
@@ -1571,6 +2090,10 @@
     "appInsightsName": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.appInsightsName.value]"
+    },
+    "authMode": {
+      "type": "string",
+      "value": "[parameters('authMode')]"
     }
   }
 }

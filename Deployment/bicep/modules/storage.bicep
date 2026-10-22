@@ -1,11 +1,13 @@
-// Storage account for the source documents. Shared-key access is off: the web app, the
-// search indexer and the deploy scripts all use Microsoft Entra ID (managed identity / az login).
+// Storage account for the source documents. Shared-key access is off unless allowSharedKeyAccess
+// is set: the demo needs it, because Cloud Shell uploads the code package with the account key and a
+// Free-tier search service reads the documents with a key.
 
 param location string
 param tags object
 param name string
 param sku string
 param containerName string
+param allowSharedKeyAccess bool
 
 resource account 'Microsoft.Storage/storageAccounts@2025-06-01' = {
   name: name
@@ -20,7 +22,7 @@ resource account 'Microsoft.Storage/storageAccounts@2025-06-01' = {
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
     allowBlobPublicAccess: false
-    allowSharedKeyAccess: false
+    allowSharedKeyAccess: allowSharedKeyAccess
     defaultToOAuthAuthentication: true
     publicNetworkAccess: 'Enabled'
   }

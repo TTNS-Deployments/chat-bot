@@ -1,14 +1,18 @@
-// Linux App Service plan and the chatbot web app (FastAPI on gunicorn/uvicorn, Python 3.12),
-// with a system-assigned managed identity. Optionally pulls the code from a public Git repository.
+// The chatbot web app (FastAPI on gunicorn/uvicorn, Python 3.12, Linux) with a system-assigned
+// managed identity. Creates its own App Service plan, or joins an existing Linux plan in the same
+// resource group and region (existingPlanName) without changing that plan in any way.
+// Optionally pulls the code from a public Git repository.
 
 param location string
 param tags object
 param planName string
+param existingPlanName string
 param webAppName string
 param planSku string
 param instanceCount int
 param appInsightsName string
 param logAnalyticsWorkspaceId string
+param enableDiagnostics bool
 param deployAppCode bool
 param repositoryUrl string
 param repositoryBranch string
@@ -29,14 +33,18 @@ var tiers = {
   P3v3: 'PremiumV3'
 }
 
-// Same command for code deployed by the scripts (zip) and from Git: both keep the repository layout.
-var startupCommand = 'gunicorn --chdir Code/backend --bind=0.0.0.0:8000 --timeout 120 --workers 2 --worker-class uvicorn.workers.UvicornWorker chatbot.main:app'
+var useExistingPlan = !empty(existingPlanName)
+
+// Same command for every way the code arrives (Oryx build from zip or Git, or a run-from-package
+// zip with the dependencies in .packages): all of them keep the repository layout.
+// `python -m gunicorn` works even when gunicorn's script is not on PATH (run-from-package).
+var startupCommand = 'python -m gunicorn --chdir Code/backend --bind=0.0.0.0:8000 --timeout 120 --workers 2 --worker-class uvicorn.workers.UvicornWorker chatbot.main:app'
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
 }
 
-resource plan 'Microsoft.Web/serverfarms@2025-03-01' = {
+resource plan 'Microsoft.Web/serverfarms@2025-03-01' = if (!useExistingPlan) {
   name: planName
   location: location
   tags: tags
@@ -51,10 +59,7 @@ resource plan 'Microsoft.Web/serverfarms@2025-03-01' = {
   }
 }
 
-var platformSettings = {
-  APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.properties.ConnectionString
-  SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-}
+var planId = useExistingPlan ? resourceId('Microsoft.Web/serverfarms', existingPlanName) : plan.id
 
 resource site 'Microsoft.Web/sites@2025-03-01' = {
   name: webAppName
@@ -67,7 +72,7 @@ resource site 'Microsoft.Web/sites@2025-03-01' = {
     type: 'SystemAssigned'
   }
   properties: {
-    serverFarmId: plan.id
+    serverFarmId: planId
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'PYTHON|3.12'
@@ -84,7 +89,10 @@ resource site 'Microsoft.Web/sites@2025-03-01' = {
 resource settings 'Microsoft.Web/sites/config@2025-03-01' = {
   parent: site
   name: 'appsettings'
-  properties: union(platformSettings, appSettings)
+  properties: union({
+    APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.properties.ConnectionString
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+  }, appSettings)
 }
 
 resource ftpCredentials 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2025-03-01' = {
@@ -109,7 +117,7 @@ resource sourceControl 'Microsoft.Web/sites/sourcecontrols@2025-03-01' = if (dep
   }
 }
 
-resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (enableDiagnostics) {
   scope: site
   name: 'to-log-analytics'
   properties: {

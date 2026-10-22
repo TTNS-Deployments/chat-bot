@@ -1,5 +1,7 @@
-// Azure AI Search. API keys are disabled: the web app and the indexer use Microsoft Entra ID.
-// The service's own managed identity reads Blob Storage and calls Azure OpenAI for embeddings.
+// Azure AI Search. On Basic and higher, API keys are disabled: the web app uses Microsoft Entra ID,
+// and the service's own managed identity reads Blob Storage and calls Azure OpenAI for embeddings.
+// The Free tier supports neither a managed identity nor the semantic ranker, so it uses keys
+// (kept in Key Vault, see searchkeys.bicep) and no semantic configuration.
 
 param location string
 param tags object
@@ -9,6 +11,9 @@ param replicaCount int
 param partitionCount int
 param semanticSearch string
 param logAnalyticsWorkspaceId string
+param enableDiagnostics bool
+
+var isFree = sku == 'free'
 
 resource service 'Microsoft.Search/searchServices@2025-05-01' = {
   name: name
@@ -18,19 +23,19 @@ resource service 'Microsoft.Search/searchServices@2025-05-01' = {
     name: sku
   }
   identity: {
-    type: 'SystemAssigned'
+    type: isFree ? 'None' : 'SystemAssigned'
   }
   properties: {
-    replicaCount: replicaCount
-    partitionCount: partitionCount
+    replicaCount: isFree ? 1 : replicaCount
+    partitionCount: isFree ? 1 : partitionCount
     hostingMode: 'Default'
     publicNetworkAccess: 'enabled'
-    disableLocalAuth: true
-    semanticSearch: semanticSearch
+    disableLocalAuth: !isFree
+    semanticSearch: isFree ? null : semanticSearch
   }
 }
 
-resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (enableDiagnostics) {
   scope: service
   name: 'to-log-analytics'
   properties: {
@@ -52,4 +57,4 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
 
 output name string = service.name
 output endpoint string = 'https://${service.name}.search.windows.net'
-output principalId string = service.identity.principalId
+output principalId string = isFree ? '' : service.identity.principalId

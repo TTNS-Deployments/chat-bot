@@ -1,14 +1,18 @@
-// Role assignments. Every service-to-service call uses a managed identity and one of these roles;
-// no service keys are stored in app settings.
+// Role assignments. Service-to-service calls use managed identities and these roles, except where a
+// Free-tier search service has no identity and uses keys from Key Vault instead (searchkeys.bicep).
 
 param webAppPrincipalId string
 param searchPrincipalId string
 param deployerPrincipalId string
 param deployerPrincipalType string
 param openAiName string
+param embeddingAccountName string
 param searchName string
 param storageName string
 param keyVaultName string
+
+@description('False for a Free-tier search service, which has no managed identity and is called with a key.')
+param searchUsesManagedIdentity bool
 
 var roleIds = {
   openAiUser: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
@@ -22,9 +26,14 @@ var roleIds = {
 }
 
 var hasDeployer = !empty(deployerPrincipalId)
+var separateEmbedding = embeddingAccountName != openAiName
 
 resource openAi 'Microsoft.CognitiveServices/accounts@2025-09-01' existing = {
   name: openAiName
+}
+
+resource embeddingAccount 'Microsoft.CognitiveServices/accounts@2025-09-01' existing = {
+  name: embeddingAccountName
 }
 
 resource search 'Microsoft.Search/searchServices@2025-05-01' existing = {
@@ -50,7 +59,7 @@ resource webOpenAi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource webSearchReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource webSearchReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (searchUsesManagedIdentity) {
   scope: search
   name: guid(search.id, 'web', roleIds.searchIndexDataReader)
   properties: {
@@ -60,7 +69,7 @@ resource webSearchReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   }
 }
 
-resource webSearchService 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource webSearchService 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (searchUsesManagedIdentity) {
   scope: search
   name: guid(search.id, 'web', roleIds.searchServiceContributor)
   properties: {
@@ -91,7 +100,7 @@ resource webKeyVault 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 
 // ---- Search service identity: the indexer reads documents and calls the embedding model ----
-resource searchBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource searchBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (searchUsesManagedIdentity) {
   scope: storage
   name: guid(storage.id, 'search', roleIds.blobDataReader)
   properties: {
@@ -101,9 +110,9 @@ resource searchBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource searchOpenAi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: openAi
-  name: guid(openAi.id, 'search', roleIds.openAiUser)
+resource searchOpenAi 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (searchUsesManagedIdentity) {
+  scope: embeddingAccount
+  name: guid(embeddingAccount.id, 'search', roleIds.openAiUser)
   properties: {
     principalId: searchPrincipalId
     principalType: 'ServicePrincipal'
@@ -111,7 +120,7 @@ resource searchOpenAi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// ---- Deploying identity: sample/bulk ingestion from the deploy scripts, reading the upload key ----
+// ---- Deploying identity: bulk ingestion from the deploy scripts, reading the stored secrets ----
 resource deployerBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasDeployer) {
   scope: storage
   name: guid(storage.id, 'deployer', roleIds.blobDataContributor)
@@ -122,7 +131,7 @@ resource deployerBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = if 
   }
 }
 
-resource deployerSearchService 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasDeployer) {
+resource deployerSearchService 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasDeployer && searchUsesManagedIdentity) {
   scope: search
   name: guid(search.id, 'deployer', roleIds.searchServiceContributor)
   properties: {
@@ -132,7 +141,7 @@ resource deployerSearchService 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-resource deployerSearchData 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasDeployer) {
+resource deployerSearchData 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasDeployer && searchUsesManagedIdentity) {
   scope: search
   name: guid(search.id, 'deployer', roleIds.searchIndexDataContributor)
   properties: {
@@ -145,6 +154,16 @@ resource deployerSearchData 'Microsoft.Authorization/roleAssignments@2022-04-01'
 resource deployerOpenAi 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasDeployer) {
   scope: openAi
   name: guid(openAi.id, 'deployer', roleIds.openAiUser)
+  properties: {
+    principalId: deployerPrincipalId
+    principalType: deployerPrincipalType
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.openAiUser)
+  }
+}
+
+resource deployerEmbedding 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasDeployer && separateEmbedding) {
+  scope: embeddingAccount
+  name: guid(embeddingAccount.id, 'deployer', roleIds.openAiUser)
   properties: {
     principalId: deployerPrincipalId
     principalType: deployerPrincipalType
