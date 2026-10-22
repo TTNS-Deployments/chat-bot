@@ -10,7 +10,10 @@ The web app reads environment variables. On Azure they are App Service app setti
 |---|---|---|
 | `CHATBOT_MODE` | `azure` | `azure` uses the Azure services; `local` uses the sample documents and an extractive stand-in for the model. Defaults to `azure` when `AZURE_OPENAI_ENDPOINT` is set, otherwise `local`. |
 | `AZURE_OPENAI_ENDPOINT` | `https://<name>.openai.azure.com/` | Azure OpenAI account |
+| `AZURE_OPENAI_API_VERSION` | `2025-04-01-preview` | Azure OpenAI data-plane API version |
 | `AZURE_OPENAI_CHAT_DEPLOYMENT` | `chat` | Chat deployment name |
+| `CHAT_REASONING_EFFORT` | `low` | Sent to reasoning models such as `gpt-5-mini` (`minimal`, `low`, `medium`, `high`). `none` sends no effort and allows `CHAT_TEMPERATURE` instead. |
+| `AZURE_OPENAI_EMBEDDING_ENDPOINT` | `https://<name>.openai.azure.com/` | Azure OpenAI account of the embedding model (may differ from the chat account) |
 | `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | `embedding` | Embedding deployment name (used by the index vectorizer and the indexer skillset) |
 | `AZURE_OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model name |
 | `AZURE_OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Vector size of the index (3072 for `text-embedding-3-large`) |
@@ -21,6 +24,10 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `AZURE_STORAGE_CONTAINER` | `documents` | Container the indexer reads |
 | `AZURE_STORAGE_RESOURCE_ID` | `/subscriptions/…/storageAccounts/<name>` | Lets the indexer connect with its managed identity (no key) |
 | `ALLOW_DOCUMENT_UPLOAD` | `True` | Show and accept uploads |
+| `AUTH_MODE` | `none` | `password` puts the chat page behind one shared password |
+| `DEMO_PASSWORD` | `@Microsoft.KeyVault(VaultName=…;SecretName=demo-password)` | The shared password (only with `AUTH_MODE=password`). If it is empty or the reference is unresolved, sign-in is refused. |
+| `AZURE_SEARCH_API_KEY`, `AZURE_SEARCH_DATASOURCE_CONNECTION`, `AZURE_OPENAI_EMBEDDING_KEY` | Key Vault references | Only for a Free-tier search service, which has no managed identity: the search admin key, the storage connection string for the indexer, and the embedding key for the indexer and vectorizer |
+| `WEBSITE_RUN_FROM_PACKAGE`, `PYTHONPATH` | SAS URL, `/home/site/wwwroot/.packages` | Only for a run-from-package deployment (`deploy.sh --code-via-arm`) |
 | `UPLOAD_API_KEY` | `@Microsoft.KeyVault(VaultName=…;SecretName=upload-api-key)` | Key for the documents API. Locally, leave it empty to allow uploads without a key. |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | | Sends telemetry to Application Insights |
 | `SCM_DO_BUILD_DURING_DEPLOYMENT` | `true` | App Service installs `requirements.txt` during deployment |
@@ -32,11 +39,10 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `SEARCH_TOP_K` | `5` | Passages retrieved per question (1-20). More sources can improve answers but cost more tokens. |
 | `MAX_SOURCE_CHARS` | `12000` | Character budget for sources in the prompt. Each passage is also capped at 3,000 characters. |
 | `MAX_HISTORY_TURNS` | `6` | Earlier question/answer pairs sent to the model. |
-| `CHAT_TEMPERATURE` | `0.2` | Sampling temperature. Reasoning models that reject it are detected automatically and called without it. |
-| `CHAT_MAX_TOKENS` | `800` | Maximum answer length (`max_completion_tokens`). |
+| `CHAT_TEMPERATURE` | not sent | Sampling temperature, only used when `CHAT_REASONING_EFFORT=none`. Models that reject it are detected and called without it. |
+| `CHAT_MAX_TOKENS` | `2000` | Maximum answer length (`max_completion_tokens`); for reasoning models this includes the reasoning tokens. |
 | `RATE_LIMIT_PER_MINUTE` | `20` | Questions per client IP per minute, per instance. `0` disables the limit. |
 | `MAX_UPLOAD_MB` | `16` | Upload size limit. |
-| `AZURE_OPENAI_API_VERSION` | `2024-10-21` | Azure OpenAI data-plane API version. |
 | `AZURE_SEARCH_API_VERSION` | `2024-07-01` | AI Search REST API version. |
 | `AZURE_CLIENT_ID` | | Client ID of a user-assigned managed identity, if you switch the web app to one. |
 | `LOCAL_DATA_DIR` | `.localdata` | Local mode: where uploaded files are stored. |

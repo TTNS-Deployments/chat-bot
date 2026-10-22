@@ -19,7 +19,7 @@ The solution is a deployable template. You choose the tier (SKU) of every Azure 
 - **Grounded answers with citations.** Each question runs a hybrid (keyword + vector) search with semantic reranking. The best passages go to the chat model, which must answer only from them and cite them as `[1]`, `[2]`… The page shows the cited sources with a snippet.
 - **Follow-up questions.** The conversation stays in the browser tab and recent turns are sent with each question, so "and for returns?" works.
 - **Your documents.** PDF, Word, PowerPoint, Excel, HTML, Markdown, CSV, JSON and text. Add them on the chat page (protected by an upload key) or with a script. Azure AI Search splits, embeds and indexes them automatically.
-- **No keys.** The web app and the search service use managed identities; key-based access is switched off on Azure OpenAI, AI Search and Storage. The one secret, the upload key, lives in Key Vault.
+- **No keys.** The web app and the search service use managed identities; key-based access is switched off on Azure OpenAI, AI Search and Storage. The one secret, the upload key, lives in Key Vault. (The Free search tier has no managed identity, so in that mode the deployment puts the keys it needs in Key Vault.)
 - **Sized by you.** Every SKU lives in a parameters file with `dev`, `standard` and `prod` presets, is validated before deployment, and appears as a dropdown in the portal wizard.
 
 <br/>
@@ -59,6 +59,7 @@ The old private-network files were removed (they remain in git history), because
 | Date | Change |
 |---|---|
 | 2026-10-14 | Audited the repository against Call-Center-Analysis. Removed the private hub-and-spoke templates and scripts (`templates/01-11`, `deploy.sh`, `deploy-openai.sh`, `scripts/common.sh`, `config/skus.env`, `index.html`, `app/README.md`, `imgs/banner.svg`, old `imgs/architecture.svg`). |
+| 2026-10-22 | Added the `demo` preset for Azure Cloud Shell: cheapest options (shared App Service plan, Free AI Search), `gpt-5-mini` in South India, embeddings in East US, shared-password sign-in, `chatbot-*` resource names, run-from-package code deployment with management calls only. All presets now use `gpt-5-mini`. |
 | 2026-10-14 | Added the application (backend, chat page, tests), Bicep infrastructure and compiled ARM template, portal wizard and Deploy to Azure button, SKU presets and validator, bash and PowerShell deployment and ingestion scripts, CI/CD workflows, documentation, licence and policy files, dev container. |
 
 ### Differences from Call-Center-Analysis
@@ -150,6 +151,7 @@ Every tier and size lives in a **SKU file** in [`Deployment/ARM/parameters/`](De
 |---|---|---|
 | [`dev`](Deployment/ARM/parameters/dev.parameters.json) | Trials and development | App Service B1, AI Search basic with 1 replica, free semantic ranker, 30K TPM per model, LRS storage |
 | [`standard`](Deployment/ARM/parameters/standard.parameters.json) | A small production workload | App Service P0v3, AI Search basic with 2 replicas (read SLA), standard semantic ranker, 50K TPM, ZRS storage |
+| [`demo`](Deployment/ARM/parameters/demo.parameters.json) | An always-on, show-only demo with a few documents, deployed from Azure Cloud Shell | Cheapest everything: web app on an existing App Service plan, Free AI Search, `gpt-5-mini` 20K TPM (South India), `text-embedding-3-small` 10K TPM (East US), LRS storage, no diagnostic-log export, shared-password sign-in. See [Demo deployment](Documents/demo-deployment.md). |
 | [`prod`](Deployment/ARM/parameters/prod.parameters.json) | Larger document sets and traffic | App Service P1v3 x2, AI Search S1 with 2 replicas, `text-embedding-3-large`, 150K/120K TPM, chat processed within the Data Zone (embeddings stay in the region), 90-day logs |
 
 What each field controls:
@@ -160,17 +162,21 @@ What each field controls:
 | `appServicePlanSku`, `appServiceInstanceCount` | Web app cost, capacity and SLA | `B1`-`B3`, `S1`-`S3`, `P0v3`-`P3v3`; 1-10 |
 | `openAiLocation` | Where prompts and documents are processed; which models exist | Region offering both models |
 | `openAiSku` | Azure OpenAI account tier | `S0` |
-| `chatModelName`, `chatModelVersion` | Answer quality, speed and price | Any chat model offered in `openAiLocation` |
+| `chatModelName`, `chatModelVersion` | Answer quality, speed and price | Any chat model offered in `openAiLocation` (default `gpt-5-mini` 2025-08-07) |
+| `chatReasoningEffort` | Speed and cost of reasoning models such as `gpt-5-mini` | `minimal`, `low`, `medium`, `high`; `none` for non-reasoning models |
+| `embeddingLocation` | Region of the embedding model; another region than the chat model creates a second Azure OpenAI resource | Empty (same as chat) or a region offering the model |
 | `chatDeploymentSku`, `embeddingDeploymentSku` | Data processing location and default quota | `GlobalStandard`, `DataZoneStandard`, `Standard` |
 | `chatCapacity`, `embeddingCapacity` | Throughput limit in thousands of tokens per minute; must fit your quota | 1-1000 |
 | `embeddingModelName` | Retrieval quality, index size, embedding cost (changing it means rebuilding the index) | `text-embedding-3-small` (1536), `text-embedding-3-large` (3072) |
-| `searchSku` | Index storage, limits and price | `basic`, `standard`, `standard2`, `standard3` |
+| `searchSku` | Index storage, limits and price | `free` (one per subscription, 50 MB, no semantic ranker), `basic`, `standard`, `standard2`, `standard3` |
 | `searchReplicaCount` | Query throughput and SLA (2+ for read SLA) | basic 1-3; standard 1-12 |
 | `searchPartitionCount` | Index size | basic 1-3; standard 1, 2, 3, 4, 6, 12 (replicas x partitions ≤ 36) |
 | `semanticSearch` | Reranking quality and per-query cost | `disabled`, `free` (1,000 queries a month), `standard` |
 | `storageSku` | Durability of the source documents | `Standard_LRS`, `_ZRS`, `_GRS`, `_RAGRS`, `_GZRS`, `_RAGZRS` |
 | `keyVaultSku` | Key Vault tier | `standard`, `premium` |
 | `logAnalyticsRetentionDays`, `logAnalyticsDailyQuotaGb` | Log cost and history | 30-730 days; GB per day or `-1` for no cap |
+| `enableDiagnostics` | Export of App Service, AI Search and Azure OpenAI logs to Log Analytics | `true`, `false` |
+| `existingAppServicePlanName` | Put the web app on an existing Linux plan in the same resource group and region (the plan is not changed) | Empty (create a plan) or a plan name |
 
 **How to change SKUs:**
 
@@ -181,7 +187,7 @@ What each field controls:
    ```text
    The SKU selection is not valid:
      - searchReplicaCount=5: the basic tier allows 1-3 replicas
-     - chat model gpt-4.1-mini version 2025-04-14 with deployment type Standard is not offered in 'centralindia'.
+     - chat model gpt-5-mini version 2025-08-07 with deployment type Standard is not offered in 'centralindia'.
        List what is: az cognitiveservices model list -l centralindia -o table
    ```
 
@@ -220,11 +226,21 @@ az login
 ./Deployment/scripts/deploy.ps1 -ResourceGroup rg-chatbot-dev -Environment dev -Seed
 ```
 
-Both scripts validate the SKUs, create the resource group, deploy the template, grant you data access for ingestion, deploy the code, wait until the app reports healthy, and with `--seed`/`-Seed` load the sample documents. Options: `--set`/`-Set`, `--skip-infra`/`-SkipInfra` (code only), `--skip-code`/`-SkipCode`, `--skip-region-check`/`-SkipRegionCheck`, `-l`/`-Location`, `-s`/`-Subscription`. Redeploying is safe and keeps the existing upload key.
+Both scripts validate the SKUs, create the resource group, deploy the template, grant you data access for ingestion, deploy the code, wait until the app reports healthy, and with `--seed`/`-Seed` load the sample documents. Options: `--set`/`-Set`, `--param`/`-Param` (secrets such as `demoPassword` and `uploadApiKey`, not printed), `--code-via-arm` (bash; code deployment with management calls only), `--skip-infra`/`-SkipInfra` (code only), `--skip-code`/`-SkipCode`, `--skip-region-check`/`-SkipRegionCheck`, `-l`/`-Location`, `-s`/`-Subscription`. On the first deployment the scripts generate the upload key and print it once. Redeploying is safe and keeps the stored upload key and demo password.
 
-### 4. GitHub Actions
+### 4. Demo from Azure Cloud Shell
 
-`.github/workflows/deploy.yml` deploys a chosen preset through OIDC. One-time setup is in the [Deployment guide](Documents/deployment-guide.md#2c-deploy-with-github-actions).
+The `demo` preset deploys with management (ARM) calls only, because Cloud Shell cannot reach Microsoft Graph, the App Service deployment endpoints, or Storage and Key Vault with a sign-in token. One command does it:
+
+```bash
+cd ~ && (git clone https://github.com/TTNS-Deployments/chat-bot.git 2>/dev/null || true) && cd ~/chat-bot && git pull && Deployment/scripts/deploy.sh -e demo --param demoPassword='CHOOSE-A-PASSWORD'
+```
+
+See [Demo deployment](Documents/demo-deployment.md) for what it creates, what it costs, and how to remove it.
+
+### 5. GitHub Actions
+
+`.github/workflows/deploy.yml` deploys a chosen preset through OIDC. One-time setup is in the [Deployment guide](Documents/deployment-guide.md#2d-deploy-with-github-actions).
 
 <br/>
 
@@ -272,7 +288,7 @@ Full steps and troubleshooting: [Deployment guide](Documents/deployment-guide.md
 
 - **No keys anywhere:** managed identities with least-privilege roles; key auth disabled on Azure OpenAI, AI Search and Storage. The upload key is the only secret and lives in Key Vault.
 - **Uploads are protected** by the upload key, file-type and size checks, because uploaded text becomes grounding data for every user.
-- **The chat page has no sign-in by default.** Anyone with the URL can ask questions (rate limited per IP). For internal use, turn on App Service Authentication with Microsoft Entra ID: *Web app → Authentication → Add identity provider → Microsoft*, then require authentication. The [Deployment guide](Documents/deployment-guide.md#3-after-deployment) has the CLI command.
+- **The chat page has no sign-in by default.** Anyone with the URL can ask questions (rate limited per IP). For a demo, set `authMode=password`: one shared password, stored in Key Vault, with a lockout after 5 wrong tries (no Entra ID app registration needed). For internal use, turn on App Service Authentication with Microsoft Entra ID: *Web app → Authentication → Add identity provider → Microsoft*, then require authentication. The [Deployment guide](Documents/deployment-guide.md#3-after-deployment) has the CLI command.
 - Services keep public endpoints protected by Entra ID; private endpoints and WAF are not part of this template.
 - Details: [SECURITY.md](SECURITY.md).
 
@@ -318,6 +334,7 @@ More: [Deployment guide → Troubleshooting](Documents/deployment-guide.md#troub
 | [`Code/frontend`](Code/frontend) | The chat page (HTML, CSS, JavaScript; no build step) |
 | [`Deployment/bicep`](Deployment/bicep) | Infrastructure source: `main.bicep` and one module per concern |
 | [`Deployment/ARM`](Deployment/ARM) | Compiled `azuredeploy.json`, SKU presets (`parameters/`), portal form for the Deploy button |
+| [`Deployment/environments`](Deployment/environments) | Per-environment script settings, for example `demo.env` (resource group, code deployment method) |
 | [`Deployment/scripts`](Deployment/scripts) | `deploy.sh`/`.ps1`, `ingest.sh`/`.ps1`, `validate_skus.py`, `build_arm.sh`, `package.py` |
 | [`Data/sample_docs`](Data/sample_docs) | Fictional sample documents for local mode and smoke tests |
 | [`Documents`](Documents) | Architecture, deployment guide, configuration, local development |

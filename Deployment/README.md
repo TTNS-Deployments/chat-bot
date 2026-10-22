@@ -4,9 +4,10 @@
 |---|---|
 | `bicep/main.bicep`, `bicep/modules/*.bicep` | **The infrastructure source.** One module per group of concerns: monitoring, storage, Key Vault, Azure OpenAI, AI Search, App Service, role assignments. |
 | `ARM/azuredeploy.json` | The ARM template compiled from the Bicep source. Used by the *Deploy to Azure* button and the deploy scripts. **Never edit it by hand**: run `scripts/build_arm.sh`. |
-| `ARM/parameters/dev.parameters.json`, `standard.parameters.json`, `prod.parameters.json` | **The SKU files (presets).** Choose the tier and size of every service. Copy one to add a preset (for example `uat.parameters.json`). |
+| `ARM/parameters/dev.parameters.json`, `standard.parameters.json`, `prod.parameters.json`, `demo.parameters.json` | **The SKU files (presets).** Choose the tier and size of every service. Copy one to add a preset (for example `uat.parameters.json`). |
 | `ARM/createUiDefinition.json` | Portal form used by the *Deploy to Azure* button (a dropdown or slider per SKU, with the Azure AI Search limits built in). |
-| `scripts/deploy.sh`, `scripts/deploy.ps1` | Validation, infrastructure and code in one command (bash and PowerShell). |
+| `scripts/deploy.sh`, `scripts/deploy.ps1` | Validation, infrastructure and code in one command (bash and PowerShell). `deploy.sh --code-via-arm` deploys the code with management calls only (Azure Cloud Shell). |
+| `environments/<env>.env` | Script settings per environment, read by `deploy.sh -e <env>` (for example the demo's resource group). |
 | `scripts/ingest.sh`, `scripts/ingest.ps1` | Upload files or folders to the knowledge base and start indexing. |
 | `scripts/validate_skus.py` | Checks a preset and overrides against the template, the AI Search scale rules and (with `--check-region`) Azure's regional model, service and quota availability. Both deploy scripts run it first. |
 | `scripts/build_arm.sh` | Compiles Bicep into `ARM/azuredeploy.json`; `--check` fails when the committed template is stale (CI and the pre-commit hook). |
@@ -29,7 +30,7 @@ Values are the three presets. "Options" are what the template accepts; anything 
 | **Azure OpenAI** | | | | |
 | `openAiLocation` | eastus2 | eastus2 | eastus2 | Must offer both models with the chosen deployment types. Prompts and documents are processed here (see "Data residency" below). |
 | `openAiSku` | S0 | S0 | S0 | `S0` (the only tier). |
-| `chatModelName` / `chatModelVersion` | gpt-4.1-mini / 2025-04-14 | same | same | Any chat-completions model your region offers. Larger models answer better, cost more and are slower. |
+| `chatModelName` / `chatModelVersion` | gpt-5-mini / 2025-08-07 | same | same | Any chat-completions model your region offers. Larger models answer better, cost more and are slower. |
 | `chatDeploymentSku` | GlobalStandard | GlobalStandard | DataZoneStandard | `GlobalStandard` (widest availability, highest default quota), `DataZoneStandard` (processing stays in the US or EU data zone), `Standard` (processing in `openAiLocation`). |
 | `chatCapacity` | 30 | 50 | 150 | Thousands of tokens per minute (TPM). One question uses roughly 3-5k tokens with five sources, so 30K TPM is about 6-10 questions a minute. Must fit your quota. |
 | `embeddingModelName` | text-embedding-3-small | text-embedding-3-small | text-embedding-3-large | `text-embedding-3-small` (1536 dimensions) or `text-embedding-3-large` (3072, better recall, about 6x the price, larger index). **Changing it later means rebuilding the index.** |
@@ -54,9 +55,15 @@ Parameters that are **not** in the SKU files, because the scripts or the portal 
 | Parameter | Set by | Purpose |
 |---|---|---|
 | `deployerPrincipalId`, `deployerPrincipalType` | deploy scripts | Gives the person or pipeline that deploys data access, for document ingestion. |
-| `uploadApiKey` | generated (`newGuid()`), or reused by the deploy scripts | The upload key, stored in Key Vault as `upload-api-key`. The scripts keep the existing key on redeploy; a portal redeploy generates a new one. |
+| `uploadApiKey` | deploy scripts (`--param`; generated on the first deployment) or the portal form | The upload key, stored in Key Vault as `upload-api-key`. Written only when a value is passed, so redeploys keep it. |
+| `authMode`, `demoPassword` | SKU file / `--param` / portal form | `password` puts the chat page behind one shared password, stored in Key Vault as `demo-password` (kept on redeploy when not passed). |
+| `appPackageUrl` | `deploy.sh --code-via-arm` | Run-from-package URL; passed into infrastructure redeploys so they keep the running code. |
 | `deployAppCode`, `repositoryUrl`, `repositoryBranch` | portal form (default on) | Lets the button deploy the application code from this public repository. The scripts deploy the code themselves and leave it off. |
 | `tags` | SKU files | Extra tags on every resource. |
+
+## The demo preset
+
+`demo.parameters.json` is the cheapest setup that still runs everything, for an always-on, show-only demo deployed from Azure Cloud Shell: the web app joins an existing App Service plan (`existingAppServicePlanName`), AI Search is `free`, Azure OpenAI is pay-per-token (`gpt-5-mini` in South India, `text-embedding-3-small` in East US through `embeddingLocation`), storage is LRS with shared-key access on, diagnostic-log export is off, resource names start with `chatbot-` (`shortResourceNames`), and the page asks for a shared password. Steps: [Documents/demo-deployment.md](../Documents/demo-deployment.md).
 
 ## Data residency
 

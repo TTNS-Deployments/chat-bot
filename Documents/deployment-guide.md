@@ -70,7 +70,11 @@ The portal gives its deployment another name (for example `Microsoft.Template-â€
 
 > The button needs the template URLs to be publicly readable (this repository is public). For a private fork, publish the two JSON files as a Template Spec or to a storage account with a SAS token, and update the button URL.
 
-## 2c. Deploy with GitHub Actions
+## 2c. Demo from Azure Cloud Shell
+
+See [demo-deployment.md](demo-deployment.md): `Deployment/scripts/deploy.sh -e demo --param demoPassword='...'`, using management (ARM) calls only.
+
+## 2d. Deploy with GitHub Actions
 
 `.github/workflows/deploy.yml` (manual run) deploys any preset through OIDC, with no stored passwords. Set it up once:
 
