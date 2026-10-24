@@ -69,10 +69,14 @@ class AzureChatModel:
         except ClientAuthenticationError as exc:
             raise UpstreamError(f"Could not get a Microsoft Entra token for Azure OpenAI: {exc}") from exc
 
-        choice = response.choices[0]
-        if choice.finish_reason == "content_filter":
+        try:
+            choice = response.choices[0]
+            finish_reason, content = choice.finish_reason, choice.message.content
+        except (AttributeError, IndexError, TypeError) as exc:
+            raise UpstreamError(f"The language model returned an unexpected response: {str(response)[:200]}") from exc
+        if finish_reason == "content_filter":
             raise ContentFiltered("The answer was blocked by the content filter. Please rephrase the question.")
-        return (choice.message.content or "").strip()
+        return (content or "").strip()
 
 
 class LocalChatModel:

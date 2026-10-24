@@ -1,9 +1,2 @@
 VERDICT: Works with issues
-Totals: Pass 91, Fail 7, Blocked 3, Not Tested 0 (of 101)
-  FAIL BE-005 [Medium] Config – auth mode: started=True; authMode reported='pasword'; unauthenticated chat=200; GET / = 200 (chat page and API open without sign-in, Sign out button hidden)
-  FAIL BE-029 [Medium] Auth – logout: logout 200; chat after logout (cookie dropped) 401; replay of pre-logout cookie -> 200
-  FAIL BE-058 [Medium] Rate limiting – spoofing: 30 chats from one client with rotating X-Forwarded-For -> 0x429; 12 wrong logins rotating XFF -> 0x429 (lockout never triggered)
-  FAIL BE-065 [Low] Error contract: LLM reply with empty choices -> 500 internal_error; AI Search 200 with non-JSON body -> 500 internal_error (server log shows an 'Unhandled error' traceback)
-  FAIL UI-021 [Medium] Typing while waiting: input box right after Enter=''; requests sent=['What does the warranty cover?']; user messages shown=['What does the warranty cover?']; second question anywhere
-  FAIL UI-023 [Low] Follow-up after long answer: previous answer length=9299 chars; follow-up result: error='history.1.content: String should have at most 8000 characters'; bot replies=1
-  FAIL FE-014 [Low] Secrets in sessionStorage: sessionStorage keys=['chatbot.uploadKey']; upload key stored in clear text=True
+Totals: Pass 98, Fail 0, Blocked 3, Not Tested 0 (of 101)

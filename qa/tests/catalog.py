@@ -143,6 +143,19 @@ DEFECTS = [
      "app.js stores the key with storage.set(KEY_KEY, …) for convenience. Exposure is limited by the strict CSP (script-src 'self') and tab scope."),
 ]
 
+# Fixes applied after the first run (2026-10-24, at the user's request). Status is recomputed from re-test results.
+FIXES = {
+    "DEF-01": "auth.py: each sign-in token carries a random nonce (`expiry.nonce.signature`) and /api/logout revokes it on the server (in memory). "
+              "Limit: the revocation list is per worker/instance, so with several workers a copied token stays valid on the others until it expires.",
+    "DEF-02": "main.py client_ip(): X-Forwarded-For is ignored unless TRUST_FORWARDED_FOR is true (default true only on App Service, where WEBSITE_SITE_NAME is set), "
+              "and then only the last, proxy-added entry is used.",
+    "DEF-03": "main.py create_app(): AUTH_MODE other than 'none'/'password' raises a RuntimeError at startup (fails closed).",
+    "DEF-04": "app.js: the submit handler returns before clearing the box while an answer is loading, so the next question stays in the input.",
+    "DEF-05": "app.js: each history entry sent to the API is cut to 8,000 characters (the API's limit).",
+    "DEF-06": "llm.py: an unexpected response shape raises UpstreamError; search.py: non-JSON/non-object replies raise UpstreamError (both → 502 upstream_error).",
+    "DEF-07": "app.js: the upload key is kept in a JavaScript variable only; any key stored by an earlier version is removed from sessionStorage on load.",
+}
+
 OUT_OF_SCOPE = [
     ("Streaming responses (UI-007)", "Not implemented: /api/chat returns one JSON response."),
     ("Stop / regenerate / copy / thumbs up-down (UI-024)", "No such controls in the UI."),
@@ -158,6 +171,8 @@ OUT_OF_SCOPE = [
 
 OBSERVATIONS = [
     "README says '91 unit tests'; the suite has 109 (all pass).",
+    "Sign-out revocation (DEF-01 fix) is held in memory per worker; the Docker image runs 2 gunicorn workers, so a copied token could still work on the other worker until expiry. A shared store would be needed for full revocation.",
+    "Fixing the failed tests changed app code: Code/backend/chatbot/{auth,main,config,llm,search}.py, Code/frontend/app.js, Documents/configuration.md, .env.example, and one assertion in Code/backend/tests/test_auth.py (token format now has three parts).",
     "A hung LLM is cut off after ~181 s (60 s timeout × 3 attempts). The UI has no request timeout or Stop button, so the user waits that long (BE-037).",
     "Local (mock) mode only matches ASCII words, so every non-English question gets 'not found' (BE-015). Live AI Search is not affected.",
     "The local keyword retriever matches some off-topic questions to unrelated passages (e.g. a bomb question returned the warranty-claim sentence). It quotes text and never generates any, so this is harmless (BE-051).",

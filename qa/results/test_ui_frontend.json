@@ -9,7 +9,7 @@
       "actual": "title='AI Based Chatbot'; input visible=True enabled=True; send visible=True enabled=True; console=[]; page errors=[]; 4xx/5xx=[]"
     },
     "message": "",
-    "duration_s": 0.617
+    "duration_s": 0.621
   },
   {
     "id": "UI-002",
@@ -21,7 +21,7 @@
       "actual": "user bubble='What does the warranty cover?'; bot reply='The warranty does not cover damage caused by misuse, power surges, incorrect installation, or repairs carried out by any'; input after send=''"
     },
     "message": "",
-    "duration_s": 0.711
+    "duration_s": 0.763
   },
   {
     "id": "UI-003",
@@ -33,7 +33,7 @@
       "actual": "requests=1; reply='Unused products in their original packaging can be returned within 14 days of delivery for a full re'"
     },
     "message": "",
-    "duration_s": 0.683
+    "duration_s": 0.619
   },
   {
     "id": "UI-004",
@@ -45,7 +45,7 @@
       "actual": "textarea value after Shift+Enter='first line\\nsecond line about warranty'; requests before Enter=0; sent message='first line\\nsecond line about warranty'; bubble ≈3.0 line-heights tall"
     },
     "message": "",
-    "duration_s": 0.72
+    "duration_s": 0.732
   },
   {
     "id": "UI-005",
@@ -57,7 +57,7 @@
       "actual": "order=['message user', 'message assistant', 'message user', 'message assistant']; styles(alignSelf,bg,left,right)=[['flex-end', 'rgb(31, 95, 191)', 787, 1070], ['flex-start', 'rgb(255, 255, 255)', 210, 967], ['flex-end', 'rgb(31, 95, 191)', 824, 1070], ['flex-start', 'rgb(255, 255, 255)', 210, 967]]"
     },
     "message": "",
-    "duration_s": 0.79
+    "duration_s": 0.739
   },
   {
     "id": "UI-006",
@@ -69,7 +69,7 @@
       "actual": "while waiting: text='Searching the documents…', send disabled=True; after reply: thinking visible=False, send disabled=False"
     },
     "message": "",
-    "duration_s": 0.973
+    "duration_s": 1.008
   },
   {
     "id": "UI-008",
@@ -81,7 +81,7 @@
       "actual": "requests sent=0; messages shown=0"
     },
     "message": "",
-    "duration_s": 1.222
+    "duration_s": 1.22
   },
   {
     "id": "UI-009",
@@ -93,7 +93,7 @@
       "actual": "{\"doc\": 1280, \"win\": 1280, \"bubbles\": [1070, 967, 1070, 967], \"chatOverflowX\": false}"
     },
     "message": "",
-    "duration_s": 0.723
+    "duration_s": 0.769
   },
   {
     "id": "UI-010",
@@ -105,7 +105,7 @@
       "actual": "{'scrollHeight': 2946, 'clientHeight': 625, 'scrollTop': 2321, 'bodyScroll': False}; scrolled to latest=True; composer still on screen=True"
     },
     "message": "",
-    "duration_s": 0.97
+    "duration_s": 1.019
   },
   {
     "id": "UI-011",
@@ -117,7 +117,7 @@
       "actual": "2nd request history=[('user', 'How long does the warranty last?'), ('assistant', 'The warranty does not cover damage cause')]; messages on screen=4"
     },
     "message": "",
-    "duration_s": 0.73
+    "duration_s": 0.742
   },
   {
     "id": "UI-012",
@@ -129,7 +129,7 @@
       "actual": "after New conversation: messages=0, welcome visible=True, stored conversation=None; next request history=[]"
     },
     "message": "",
-    "duration_s": 0.771
+    "duration_s": 0.773
   },
   {
     "id": "UI-013",
@@ -153,7 +153,7 @@
       "actual": "citation buttons=2; sources listed=['[1]warranty-policy.md\\n\\nNorthwind Appliances – Warranty Policy (sample) Standard warranty Every Northwind appliance comes with a two-year standard warranty from the date of delivery. The standard warranty covers defects in materials and workmanship, including the motor, compressor, control board and…', '[2]customer-support.md']; first source open after click=True"
     },
     "message": "",
-    "duration_s": 0.725
+    "duration_s": 0.734
   },
   {
     "id": "UI-015",
@@ -165,7 +165,7 @@
       "actual": "on 502: {'error': 'The service could not answer right now. Please try again shortly.', 'retry': True, 'input': 'What does the warranty cover?', 'input_enabled': True, 'send_enabled': True, 'msgs': 0}; after Try again: {'error_hidden': True, 'msgs': 2}"
     },
     "message": "",
-    "duration_s": 0.719
+    "duration_s": 0.724
   },
   {
     "id": "UI-016",
@@ -177,7 +177,7 @@
       "actual": "error='Could not reach the server. Check your connection and try again.'; question kept in box='How do I return a product?'; send enabled=True; retry after server back -> answered"
     },
     "message": "",
-    "duration_s": 0.696
+    "duration_s": 0.741
   },
   {
     "id": "UI-017",
@@ -189,7 +189,7 @@
       "actual": "error shown='The server returned an error (504).'; send enabled=True"
     },
     "message": "",
-    "duration_s": 0.685
+    "duration_s": 0.633
   },
   {
     "id": "UI-018",
@@ -201,7 +201,7 @@
       "actual": "messages after reload=2; in a new tab=0 (documented: conversation lives in the browser tab)"
     },
     "message": "",
-    "duration_s": 1.787
+    "duration_s": 1.905
   },
   {
     "id": "UI-019",
@@ -213,7 +213,7 @@
       "actual": "unauthenticated / -> /login.html; wrong password msg='The password is not correct.'; after sign-in Sign out visible=True; refresh keeps session+chat=True; after sign-out / -> /login.html; conversation cleared=True"
     },
     "message": "",
-    "duration_s": 1.546
+    "duration_s": 1.533
   },
   {
     "id": "UI-020",
@@ -225,19 +225,19 @@
       "actual": "{'strong': 1, 'ul': 2, 'li': 4, 'cite': 2, 'pre': 0, 'links': 0, 'rawFence': True, 'rawLink': True} – bold, bullet/numbered lists and [n] citations render; code fences and links are NOT rendered (shown as plain text; not a designed feature)"
     },
     "message": "",
-    "duration_s": 0.679
+    "duration_s": 0.687
   },
   {
     "id": "UI-021",
     "tests": [
       "qa/tests/test_ui_frontend.py::test_UI_021_question_typed_while_waiting_is_not_lost"
     ],
-    "status": "Fail",
+    "status": "Pass",
     "props": {
-      "actual": "input box right after Enter=''; requests sent=['What does the warranty cover?']; user messages shown=['What does the warranty cover?']; second question anywhere (screen/request/input)=False"
+      "actual": "input box right after Enter='And how do I return a product?'; requests sent=['What does the warranty cover?']; user messages shown=['What does the warranty cover?']; second question anywhere (screen/request/input)=True"
     },
-    "message": "AssertionError: second question silently discarded: input cleared but ask() returned early because busy\nassert False",
-    "duration_s": 1.684
+    "message": "",
+    "duration_s": 1.71
   },
   {
     "id": "UI-022",
@@ -249,19 +249,19 @@
       "actual": "upload ok status='qa-ui-upload.md added.'; disallowed status='Unsupported file type .exe. Allowed: .pdf, .docx, .pptx, .xlsx, .txt, .md, .html, .htm, .csv, .json'; indexer note='Local mode: .md and .txt files are searchable immediately.'; chat cites uploaded doc=True"
     },
     "message": "",
-    "duration_s": 0.894
+    "duration_s": 0.876
   },
   {
     "id": "UI-023",
     "tests": [
       "qa/tests/test_ui_frontend.py::test_UI_023_follow_up_after_very_long_answer"
     ],
-    "status": "Fail",
+    "status": "Pass",
     "props": {
-      "actual": "previous answer length=9299 chars; follow-up result: error='history.1.content: String should have at most 8000 characters'; bot replies=1"
+      "actual": "previous answer length=9299 chars; follow-up result: error=''; bot replies=2"
     },
-    "message": "AssertionError: a long previous answer makes every follow-up fail (history content > 8000 chars -> 422)\nassert (not 'history.1.content: String should have at most 8000 characters')",
-    "duration_s": 2.209
+    "message": "",
+    "duration_s": 2.208
   },
   {
     "id": "FE-001",
@@ -273,7 +273,7 @@
       "actual": "console errors/warnings=[]; page errors=[]; failed requests=[]; 4xx/5xx=[]"
     },
     "message": "",
-    "duration_s": 1.485
+    "duration_s": 1.456
   },
   {
     "id": "FE-002",
@@ -285,7 +285,7 @@
       "actual": "no build step (plain JS); node --check 2 files exit codes=[0, 0]; python compileall exit=0; lint/type-check configs found=none (not configured)"
     },
     "message": "",
-    "duration_s": 0.232
+    "duration_s": 0.233
   },
   {
     "id": "FE-003",
@@ -297,7 +297,7 @@
       "actual": "{\"/\": [200, \"text/html; charset=utf-8\"], \"/app.js\": [200, \"text/javascript; charset=utf-8\"], \"/app.css\": [200, \"text/css; charset=utf-8\"], \"/favicon.svg\": [200, \"image/svg+xml\"], \"/login.html\": [200, \"text/html; charset=utf-8\"], \"/login.js\": [200, \"text/javascript; charset=utf-8\"]}; no external fonts/images/CDN referenced"
     },
     "message": "",
-    "duration_s": 0.121
+    "duration_s": 0.123
   },
   {
     "id": "FE-004",
@@ -309,7 +309,7 @@
       "actual": "dialogs fired=[]; injected elements=0; scripts 1->1; payload shown as text=True"
     },
     "message": "",
-    "duration_s": 1.179
+    "duration_s": 1.178
   },
   {
     "id": "FE-005",
@@ -321,7 +321,7 @@
       "actual": "dialogs fired=[]; injected elements after send+reload=0; user bubble text='<script>alert(\"xss-script\")</script> <img src=x onerror=aler'"
     },
     "message": "",
-    "duration_s": 1.946
+    "duration_s": 1.949
   },
   {
     "id": "FE-006",
@@ -333,7 +333,7 @@
       "actual": "secret patterns in served HTML/JS/CSS=[]; auth/key headers in browser requests=[]"
     },
     "message": "",
-    "duration_s": 1.332
+    "duration_s": 1.299
   },
   {
     "id": "FE-007",
@@ -345,7 +345,7 @@
       "actual": "httpOnly=True, sameSite=Lax, secure=False (served over plain http locally; Secure is set when X-Forwarded-Proto=https, see BE-028), path=/, readable by JS=False"
     },
     "message": "",
-    "duration_s": 0.218
+    "duration_s": 0.21
   },
   {
     "id": "FE-008",
@@ -357,7 +357,7 @@
       "actual": "cross-site form POST to /api/chat: session cookie sent=False, response status=401"
     },
     "message": "",
-    "duration_s": 1.794
+    "duration_s": 1.774
   },
   {
     "id": "FE-009",
@@ -371,7 +371,7 @@
       "actual": "375x812: scrollWidth=375 innerWidth=375; on-screen={'#input': True, '#send': True, '#new-chat': True, '#docs-button': True, '#title': True}; dialog x=19 w=337 | 768x1024: scrollWidth=768 innerWidth=768; on-screen={'#input': True, '#send': True, '#new-chat': True, '#docs-button': True, '#title': True}; dialog x=104 w=560 | 1280x800: scrollWidth=1280 innerWidth=1280; on-screen={'#input': True, '#send': True, '#new-chat': True, '#docs-button': True, '#title': True}; dialog x=360 w=560"
     },
     "message": "",
-    "duration_s": 2.52
+    "duration_s": 2.461
   },
   {
     "id": "FE-010",
@@ -384,7 +384,7 @@
       "actual": "[light] basics={'lang': 'en', 'title': 'AI Based Chatbot', 'inputLabel': True, 'sendName': 'Send'}; axe violations={\"welcome\": [{\"id\": \"region\", \"impact\": \"moderate\", \"n\": 3, \"target\": \"label[for=\\\"input\\\"]\"}], \"conversation\": [{\"id\": \"heading-order\", \"impact\": \"moderate\", \"n\": 1, \"target\": \".sources > h3\"}, {\"id\": \"region\", \"impact\": \"moderate\", \"n\": 3, \"target\": \"label[for=\\\"input\\\"]\"}], \"documents dialog\": [], \"login\": []} | [dark] basics={'lang': 'en', 'title': 'AI Based Chatbot', 'inputLabel': True, 'sendName': 'Send'}; axe violations={\"welcome\": [{\"id\": \"region\", \"impact\": \"moderate\", \"n\": 3, \"target\": \"label[for=\\\"input\\\"]\"}], \"conversation\": [{\"id\": \"heading-order\", \"impact\": \"moderate\", \"n\": 1, \"target\": \".sources > h3\"}, {\"id\": \"region\", \"impact\": \"moderate\", \"n\": 3, \"target\": \"label[for=\\\"input\\\"]\"}], \"documents dialog\": [], \"login\": []}"
     },
     "message": "",
-    "duration_s": 3.0709999999999997
+    "duration_s": 3.223
   },
   {
     "id": "FE-011",
@@ -396,7 +396,7 @@
       "actual": "autofocus=input; tab order (element, visible outline)=[['send', True], ['BODY', False], ['docs-button', True], ['new-chat', True], ['chip', True], ['chip', True], ['chip', True], ['input', False]]; composer border when textarea focused=rgb(31, 95, 191); focus after reply=input"
     },
     "message": "",
-    "duration_s": 0.662
+    "duration_s": 0.706
   },
   {
     "id": "FE-012",
@@ -409,7 +409,7 @@
       "actual": "[light] WCAG AA color-contrast: 20 text nodes pass, violations=[] | [dark] WCAG AA color-contrast: 20 text nodes pass, violations=[]"
     },
     "message": "",
-    "duration_s": 1.96
+    "duration_s": 1.968
   },
   {
     "id": "FE-013",
@@ -421,18 +421,18 @@
       "actual": "localStorage keys=[]"
     },
     "message": "",
-    "duration_s": 0.728
+    "duration_s": 0.721
   },
   {
     "id": "FE-014",
     "tests": [
       "qa/tests/test_ui_frontend.py::test_FE_014_no_secret_in_session_storage"
     ],
-    "status": "Fail",
+    "status": "Pass",
     "props": {
-      "actual": "sessionStorage keys=['chatbot.uploadKey']; upload key stored in clear text=True"
+      "actual": "sessionStorage keys=[]; upload key stored in clear text=False"
     },
-    "message": "AssertionError: upload key persisted in sessionStorage\nassert 'qa-fake-upload-key' not in '{\"chatbot.u...oad-key\\\\\"\"}'\n  \n  'qa-fake-upload-key' is contained here:\n    {\"chatbot.uploadKey\": \"\\\"qa-fake-upload-key\\\"\"}\n  ?                          ++++++++++++++++++",
-    "duration_s": 0.652
+    "message": "",
+    "duration_s": 0.645
   }
 ]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import secrets
 import threading
 import time
 from collections import deque
@@ -32,6 +33,7 @@ class PasswordGate:
         self.lockout_seconds = lockout_seconds
         self.session_seconds = session_seconds
         self._failures: dict[str, deque] = {}
+        self._revoked: dict[str, int] = {}  # signature -> expiry, for tokens signed out before they expire
         self._lock = threading.Lock()
 
     @property
@@ -63,18 +65,35 @@ class PasswordGate:
             self._recent(client, now).append(now)
         return False
 
-    # ---- session cookie: "<expiry>.<signature>" ----
-    def _sign(self, expiry: str) -> str:
-        return hmac.new(self._key, expiry.encode(), hashlib.sha256).hexdigest()
+    # ---- session cookie: "<expiry>.<nonce>.<signature>" ----
+    # The nonce makes every sign-in a distinct token, so signing out revokes only that session.
+    # Revocation is kept in memory, per worker: with several workers or instances a signed-out token
+    # stays valid on the others until it expires (at most SESSION_SECONDS).
+    def _sign(self, payload: str) -> str:
+        return hmac.new(self._key, payload.encode(), hashlib.sha256).hexdigest()
 
     def issue(self, now: float | None = None) -> str:
         expiry = str(int((time.time() if now is None else now) + self.session_seconds))
-        return f"{expiry}.{self._sign(expiry)}"
+        payload = f"{expiry}.{secrets.token_hex(8)}"
+        return f"{payload}.{self._sign(payload)}"
 
     def valid(self, token: str | None, now: float | None = None) -> bool:
-        if not token or not self.configured or "." not in token:
+        if not token or not self.configured or token.count(".") != 2:
             return False
-        expiry, signature = token.split(".", 1)
+        expiry, _, signature = token.split(".")
         if not expiry.isdigit() or int(expiry) < (time.time() if now is None else now):
             return False
-        return hmac.compare_digest(signature, self._sign(expiry))
+        if not hmac.compare_digest(signature, self._sign(token.rsplit(".", 1)[0])):
+            return False
+        with self._lock:
+            return signature not in self._revoked
+
+    def revoke(self, token: str | None, now: float | None = None) -> None:
+        """Sign a session out on the server (called by /api/logout)."""
+        if not self.valid(token, now):
+            return
+        now = time.time() if now is None else now
+        expiry, _, signature = token.split(".")
+        with self._lock:
+            self._revoked = {s: e for s, e in self._revoked.items() if e >= now}  # forget expired entries
+            self._revoked[signature] = int(expiry)

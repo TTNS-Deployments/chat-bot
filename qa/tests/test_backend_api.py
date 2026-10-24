@@ -451,7 +451,7 @@ def test_BE_058_rate_limit_spoofed_forwarded_for(tmp_path, record):
     codes = [c.post("/api/chat", json={"message": "warranty"}, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code for i in range(30)]
     pw = make_client(tmp_path, AUTH_MODE="password", DEMO_PASSWORD="qa-test-only-pw")
     login = [pw.post("/api/login", json={"password": f"guess{i}"}, headers={"X-Forwarded-For": f"10.1.0.{i}"}).status_code for i in range(12)]
-    record(actual=f"30 chats from one client with rotating X-Forwarded-For -> {codes.count(429)}x429; 12 wrong logins rotating XFF -> {login.count(429)}x429 (lockout never triggered)")
+    record(actual=f"30 chats from one client with rotating X-Forwarded-For -> {codes.count(429)}x429; 12 wrong logins rotating XFF -> {login.count(429)}x429 ({'lockout triggered' if 429 in login else 'lockout never triggered'})")
     assert codes.count(429) >= 10, "per-IP rate limit bypassed by a client-supplied X-Forwarded-For header"
     assert login.count(429) >= 1, "login lockout bypassed by a client-supplied X-Forwarded-For header"
 

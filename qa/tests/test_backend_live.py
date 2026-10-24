@@ -60,8 +60,17 @@ def test_BE_004_invalid_config_values(qa_tmp, record):
 
 
 def test_BE_005_unrecognised_auth_mode_fails_closed(qa_tmp, record):
-    srv = start_server(qa_tmp, "auth-typo", AUTH_MODE="pasword", DEMO_PASSWORD="qa-test-only-pw")
+    srv = start_server(qa_tmp, "auth-typo", wait_s=15, AUTH_MODE="pasword", DEMO_PASSWORD="qa-test-only-pw")
     try:
+        if not srv.started:
+            try:
+                srv.proc.wait(10)
+            except subprocess.TimeoutExpired:
+                pass
+            line = next((l for l in srv.log().splitlines() if l.startswith("RuntimeError:")), "")
+            record(actual=f"app refused to start: exit code={srv.proc.poll()}; {line.strip()[:200]}", evidence=srv.cmd)
+            assert srv.proc.poll() not in (None, 0) and "AUTH_MODE" in line
+            return
         cfg = httpx.get(f"{srv.url}/api/config").json()
         chat = httpx.post(f"{srv.url}/api/chat", json={"message": "warranty"}).status_code
         page = httpx.get(f"{srv.url}/", follow_redirects=False).status_code
@@ -99,7 +108,7 @@ def test_BE_053_no_hardcoded_secrets(record):
     files = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True).stdout.split()
     hits = []
     for f in files:
-        if f.endswith((".pdf", ".png", ".svg", ".zip")):
+        if f.endswith((".pdf", ".png", ".svg", ".zip", ".xlsx")) or not (REPO / f).is_file():
             continue
         text = (REPO / f).read_text(errors="ignore")
         for name, pat in SECRET_PATTERNS.items():
@@ -108,9 +117,10 @@ def test_BE_053_no_hardcoded_secrets(record):
                     continue  # documentation placeholder or ARM template expression, not a value
                 line = text.count("\n", 0, m.start()) + 1
                 hits.append((f, line, name))
-    real = [h for h in hits if not h[0].startswith("Code/backend/tests/")]
+    fixture_dirs = ("Code/backend/tests/", "qa/")  # unit tests and this QA suite use dummy values only
+    real = [h for h in hits if not h[0].startswith(fixture_dirs)]
     record(actual=f"{len(files)} tracked files scanned; matches outside unit tests: {real}; matches in unit-test fixtures (dummy values): "
-                  f"{[(f, l) for f, l, _ in hits if f.startswith('Code/backend/tests/')]}")
+                  f"{[(f, l) for f, l, _ in hits if f.startswith(fixture_dirs)]}")
     assert not real
 
 

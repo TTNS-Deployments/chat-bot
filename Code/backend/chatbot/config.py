@@ -88,6 +88,7 @@ class Settings:
     max_history_turns: int = 6
     max_source_chars: int = 12000
     rate_limit_per_minute: int = 20
+    trust_forwarded_for: bool = False  # True behind App Service (WEBSITE_SITE_NAME is set) or a proxy you trust
     azure_client_id: str = ""
     local_data_dir: Path = REPO_ROOT / ".localdata"
 
@@ -155,6 +156,7 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
         max_history_turns=_int(e.get("MAX_HISTORY_TURNS"), Settings.max_history_turns),
         max_source_chars=_int(e.get("MAX_SOURCE_CHARS"), Settings.max_source_chars),
         rate_limit_per_minute=_int(e.get("RATE_LIMIT_PER_MINUTE"), Settings.rate_limit_per_minute),
+        trust_forwarded_for=_bool(e.get("TRUST_FORWARDED_FOR"), bool(e.get("WEBSITE_SITE_NAME"))),
         azure_client_id=e.get("AZURE_CLIENT_ID", ""),
         local_data_dir=Path(e.get("LOCAL_DATA_DIR") or Settings.local_data_dir),
     )

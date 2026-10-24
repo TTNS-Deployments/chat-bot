@@ -203,7 +203,7 @@ class SearchClient:
         if s.search_semantic_config:
             body["queryType"] = "semantic"
             body["semanticConfiguration"] = s.search_semantic_config
-        return self._request("POST", f"indexes/{s.search_index}/docs/search", json=body).json().get("value", [])
+        return _json(self._request("POST", f"indexes/{s.search_index}/docs/search", json=body)).get("value", [])
 
     # ---- management ----
     def put(self, collection: str, definition: dict) -> None:
@@ -215,7 +215,7 @@ class SearchClient:
         return response.status_code == 202
 
     def indexer_status(self) -> dict:
-        data = self._request("GET", f"indexers/{self.settings.search_indexer}/status").json()
+        data = _json(self._request("GET", f"indexers/{self.settings.search_indexer}/status"))
         last = data.get("lastResult") or {}
         return {
             "status": last.get("status") or data.get("status", "unknown"),
@@ -224,6 +224,16 @@ class SearchClient:
             "itemsFailed": last.get("itemsFailed", 0),
             "errors": [e.get("errorMessage", "") for e in (last.get("errors") or [])[:5]],
         }
+
+
+def _json(response: httpx.Response) -> dict:
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise UpstreamError(f"Azure AI Search returned a response that is not JSON: {response.text[:200]}") from exc
+    if not isinstance(data, dict):
+        raise UpstreamError(f"Azure AI Search returned an unexpected response: {response.text[:200]}")
+    return data
 
 
 def _error_message(response: httpx.Response) -> str:

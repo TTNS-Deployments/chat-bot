@@ -1,0 +1,455 @@
+...........................................s.......F.....s.............. [ 45%]
+.....s.......F......F..........................F...................F.F.. [ 90%]
+...............F                                                         [100%]
+=================================== FAILURES ===================================
+______________________ test_BE_029_logout_revokes_session ______________________
+
+tmp_path = PosixPath('/tmp/claude-1000/-workspaces-chat-bot/a5207301-ae9f-42ab-91e5-ec3151fdba47/scratchpad/full/test_BE_029_logout_revokes_ses0')
+record = <function record.<locals>._record at 0x75fe4e9928e0>
+
+    def test_BE_029_logout_revokes_session(tmp_path, record):
+        from chatbot.auth import COOKIE_NAME
+    
+        c = make_client(tmp_path, AUTH_MODE="password", DEMO_PASSWORD="qa-test-only-pw")
+        c.post("/api/login", json={"password": "qa-test-only-pw"})
+        token = c.cookies.get(COOKIE_NAME)
+        out = c.post("/api/logout")
+        after_logout_same_client = c.post("/api/chat", json={"message": "warranty"}).status_code
+        c.cookies.set(COOKIE_NAME, token)  # e.g. a copied/stolen cookie
+        replay = c.post("/api/chat", json={"message": "warranty"}).status_code
+        record(actual=f"logout {out.status_code}; chat after logout (cookie dropped) {after_logout_same_client}; replay of pre-logout cookie -> {replay}")
+        assert after_logout_same_client == 401
+>       assert replay == 401, "token still valid after logout (no server-side revocation)"
+E       AssertionError: token still valid after logout (no server-side revocation)
+E       assert 200 == 401
+
+qa/tests/test_backend_api.py:286: AssertionError
+_________________ test_BE_058_rate_limit_spoofed_forwarded_for _________________
+
+tmp_path = PosixPath('/tmp/claude-1000/-workspaces-chat-bot/a5207301-ae9f-42ab-91e5-ec3151fdba47/scratchpad/full/test_BE_058_rate_limit_spoofed0')
+record = <function record.<locals>._record at 0x75fe4ea43b00>
+
+    def test_BE_058_rate_limit_spoofed_forwarded_for(tmp_path, record):
+        c = make_client(tmp_path, RATE_LIMIT_PER_MINUTE="20", AUTH_MODE="none")
+        codes = [c.post("/api/chat", json={"message": "warranty"}, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code for i in range(30)]
+        pw = make_client(tmp_path, AUTH_MODE="password", DEMO_PASSWORD="qa-test-only-pw")
+        login = [pw.post("/api/login", json={"password": f"guess{i}"}, headers={"X-Forwarded-For": f"10.1.0.{i}"}).status_code for i in range(12)]
+        record(actual=f"30 chats from one client with rotating X-Forwarded-For -> {codes.count(429)}x429; 12 wrong logins rotating XFF -> {login.count(429)}x429 (lockout never triggered)")
+>       assert codes.count(429) >= 10, "per-IP rate limit bypassed by a client-supplied X-Forwarded-For header"
+E       AssertionError: per-IP rate limit bypassed by a client-supplied X-Forwarded-For header
+E       assert 0 >= 10
+E        +  where 0 = <built-in method count of list object at 0x75fe4ea76f40>(429)
+E        +    where <built-in method count of list object at 0x75fe4ea76f40> = [200, 200, 200, 200, 200, 200, ...].count
+
+qa/tests/test_backend_api.py:455: AssertionError
+_______________ test_BE_005_unrecognised_auth_mode_fails_closed ________________
+
+qa_tmp = PosixPath('/tmp/claude-1000/-workspaces-chat-bot/a5207301-ae9f-42ab-91e5-ec3151fdba47/scratchpad/full/qa0')
+record = <function record.<locals>._record at 0x75fe4e78c220>
+
+    def test_BE_005_unrecognised_auth_mode_fails_closed(qa_tmp, record):
+        srv = start_server(qa_tmp, "auth-typo", AUTH_MODE="pasword", DEMO_PASSWORD="qa-test-only-pw")
+        try:
+            cfg = httpx.get(f"{srv.url}/api/config").json()
+            chat = httpx.post(f"{srv.url}/api/chat", json={"message": "warranty"}).status_code
+            page = httpx.get(f"{srv.url}/", follow_redirects=False).status_code
+            record(actual=f"started={srv.started}; authMode reported={cfg.get('authMode')!r}; unauthenticated chat={chat}; GET / = {page} "
+                          f"(chat page and API open without sign-in, Sign out button hidden)", evidence=srv.cmd)
+>           assert not srv.started or chat == 401, "AUTH_MODE typo silently disables sign-in (fails open)"
+E           AssertionError: AUTH_MODE typo silently disables sign-in (fails open)
+E           assert (not True or 200 == 401)
+E            +  where True = Server(url='http://127.0.0.1:33043', proc=<Popen: returncode: None args: ['/workspaces/chat-bot/.venv/bin/python', '-m...ode/backend && AUTH_MODE=pasword DEMO_PASSWORD=<test-value> .venv/bin/python -m uvicorn chatbot.main:app --port 33043').started
+
+qa/tests/test_backend_live.py:70: AssertionError
+__________ test_BE_065_malformed_upstream_follows_documented_contract __________
+
+tmp_path = PosixPath('/tmp/claude-1000/-workspaces-chat-bot/a5207301-ae9f-42ab-91e5-ec3151fdba47/scratchpad/full/test_BE_065_malformed_upstream0')
+record = <function record.<locals>._record at 0x75fe4f0a4a40>
+
+    def test_BE_065_malformed_upstream_follows_documented_contract(tmp_path, record):
+        """Documents/local-development.md: '502 upstream_error – Azure OpenAI or AI Search failed'."""
+        from conftest import CapturingModel
+        from chatbot.config import Settings
+        from chatbot.retrieval import AzureSearchRetriever
+        from chatbot.search import SearchClient
+    
+        llm = client_for(tmp_path, lambda req: httpx.Response(200, json={**OK_BODY, "choices": []}))
+        s = Settings(mode="azure", search_endpoint="https://mock.search.windows.net")
+        search = SearchClient(s, lambda: "qa-token", http=httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, text="oops"))))
+        srch = make_client(tmp_path, components=components_with(CapturingModel(), tmp_path, AzureSearchRetriever(search)))
+        r1, _ = ask(llm)
+        r2, _ = ask(srch)
+        record(actual=f"LLM reply with empty choices -> {r1.status_code} {r1.json()['error']['code']}; AI Search 200 with non-JSON body -> "
+                      f"{r2.status_code} {r2.json()['error']['code']} (server log shows an 'Unhandled error' traceback)")
+>       assert (r1.status_code, r2.status_code) == (502, 502)
+E       assert (500, 500) == (502, 502)
+E         
+E         At index 0 diff: 500 != 502
+E         Use -v to get more diff
+
+qa/tests/test_backend_llm_failures.py:185: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    chatbot:main.py:197 Unhandled error
+  + Exception Group Traceback (most recent call last):
+  |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_utils.py", line 104, in create_collapsing_task_group
+  |     async with anyio.create_task_group() as tg:
+  |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/telemetry/_asgi.py", line 151, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 203, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 165, in security_headers
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 179, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 149, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 203, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 158, in require_sign_in
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 179, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 149, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/routing.py", line 676, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 2786, in app
+    |     await route.handle(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1310, in handle
+    |     await super().handle(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/routing.py", line 282, in handle
+    |     await self.app(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 165, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 151, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 727, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 362, in run_endpoint_function
+    |     return await run_in_threadpool(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 34, in run_in_threadpool
+    |     return await anyio.to_thread.run_sync(func)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 65, in run_sync
+    |     return await get_async_backend().run_sync_in_worker_thread(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2706, in run_sync_in_worker_thread
+    |     return await future
+    |            ^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1100, in run
+    |     result = context.run(func, *args)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/telemetry/_api.py", line 244, in _run_sync_endpoint
+    |     return function(**arguments)
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 242, in chat
+    |     result = components.chat.answer(body.message, [m.model_dump() for m in body.history])
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/Code/backend/chatbot/service.py", line 37, in answer
+    |     text = self.model.complete(messages)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/workspaces/chat-bot/Code/backend/chatbot/llm.py", line 72, in complete
+    |     choice = response.choices[0]
+    |              ~~~~~~~~~~~~~~~~^^^
+    | IndexError: list index out of range
+    +------------------------------------
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/telemetry/_asgi.py", line 151, in __call__
+    await self.app(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 203, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 165, in security_headers
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 179, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 203, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 158, in require_sign_in
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 179, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/routing.py", line 676, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 2786, in app
+    await route.handle(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1310, in handle
+    await super().handle(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/routing.py", line 282, in handle
+    await self.app(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 165, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 151, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 727, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 362, in run_endpoint_function
+    return await run_in_threadpool(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 34, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 65, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2706, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1100, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/telemetry/_api.py", line 244, in _run_sync_endpoint
+    return function(**arguments)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 242, in chat
+    result = components.chat.answer(body.message, [m.model_dump() for m in body.history])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/service.py", line 37, in answer
+    text = self.model.complete(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/llm.py", line 72, in complete
+    choice = response.choices[0]
+             ~~~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+ERROR    chatbot:main.py:197 Unhandled error
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/json/decoder.py", line 353, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+StopIteration: 0
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/telemetry/_asgi.py", line 151, in __call__
+    await self.app(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 203, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 165, in security_headers
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 179, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 203, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 158, in require_sign_in
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 179, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/routing.py", line 676, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 2786, in app
+    await route.handle(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1310, in handle
+    await super().handle(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/routing.py", line 282, in handle
+    await self.app(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 165, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 151, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 727, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 362, in run_endpoint_function
+    return await run_in_threadpool(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 34, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 65, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2706, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1100, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/fastapi/telemetry/_api.py", line 244, in _run_sync_endpoint
+    return function(**arguments)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/main.py", line 242, in chat
+    result = components.chat.answer(body.message, [m.model_dump() for m in body.history])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/service.py", line 35, in answer
+    passages = select_passages(self.retriever.retrieve(query, self.settings.search_top_k), self.settings.max_source_chars)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/retrieval.py", line 48, in retrieve
+    for doc in self.client.search(query, top):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/Code/backend/chatbot/search.py", line 206, in search
+    return self._request("POST", f"indexes/{s.search_index}/docs/search", json=body).json().get("value", [])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/chat-bot/.venv/lib/python3.12/site-packages/httpx/_models.py", line 832, in json
+    return jsonlib.loads(self.content, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+_____________ test_UI_021_question_typed_while_waiting_is_not_lost _____________
+
+tab = <test_ui_frontend.Tab object at 0x75fe4da67200>
+record = <function record.<locals>._record at 0x75fe4db5c9a0>
+
+    def test_UI_021_question_typed_while_waiting_is_not_lost(tab, record):
+        p = tab.open()
+        pending = []
+        p.route("**/api/chat", lambda route: pending.append(route))
+        p.fill("#input", "What does the warranty cover?")
+        p.click("#send")
+        expect(p.locator("#thinking")).to_be_visible()
+        p.fill("#input", "And how do I return a product?")
+        p.press("#input", "Enter")
+        box_after_enter = p.input_value("#input")
+        p.wait_for_timeout(200)
+        pending[0].continue_()
+        p.unroute("**/api/chat")
+        expect(p.locator("li.message.assistant")).to_have_count(1)
+        p.wait_for_timeout(800)
+        for r in pending[1:]:
+            r.continue_()
+        shown = p.locator("li.message.user").all_inner_texts()
+        sent = [r["message"] for r in tab.chat_requests]
+        survived = "And how do I return a product?" in shown + sent + [p.input_value("#input")]
+        record(actual=f"input box right after Enter={box_after_enter!r}; requests sent={sent}; user messages shown={shown}; "
+                      f"second question anywhere (screen/request/input)={survived}")
+>       assert survived, "second question silently discarded: input cleared but ask() returned early because busy"
+E       AssertionError: second question silently discarded: input cleared but ask() returned early because busy
+E       assert False
+
+qa/tests/test_ui_frontend.py:345: AssertionError
+_________________ test_UI_023_follow_up_after_very_long_answer _________________
+
+tab = <test_ui_frontend.Tab object at 0x75fe4db7fec0>
+record = <function record.<locals>._record at 0x75fe4daef4c0>
+
+    def test_UI_023_follow_up_after_very_long_answer(tab, record):
+        p = tab.open()
+        long_answer = " ".join(["The warranty covers defects in materials and workmanship [1]."] * 150)  # ~9,300 chars
+        fulfill_once(p, long_answer, [{"id": 1, "title": "warranty-policy.md", "snippet": "…"}])
+        tab.ask("Explain the warranty in full detail")
+        p.fill("#input", "and how long does it last?")
+        p.click("#send")
+        p.wait_for_timeout(1500)
+        err = p.locator("#error-text").inner_text() if p.locator("#error").is_visible() else ""
+        record(actual=f"previous answer length={len(long_answer)} chars; follow-up result: error={err!r}; bot replies={p.locator('li.message.assistant').count()}")
+>       assert not err and p.locator("li.message.assistant").count() == 2, "a long previous answer makes every follow-up fail (history content > 8000 chars -> 422)"
+E       AssertionError: a long previous answer makes every follow-up fail (history content > 8000 chars -> 422)
+E       assert (not 'history.1.content: String should have at most 8000 characters')
+
+qa/tests/test_ui_frontend.py:383: AssertionError
+___________________ test_FE_014_no_secret_in_session_storage ___________________
+
+tab = <test_ui_frontend.Tab object at 0x75fe4f1077d0>
+record = <function record.<locals>._record at 0x75fe4db70860>
+
+    def test_FE_014_no_secret_in_session_storage(tab, record):
+        p = tab.open()
+        p.click("#docs-button")
+        p.fill("#upload-key", "qa-fake-upload-key")
+        p.dispatch_event("#upload-key", "change")
+        ss = p.evaluate("Object.fromEntries(Object.entries(sessionStorage))")
+        record(actual=f"sessionStorage keys={list(ss)}; upload key stored in clear text={'qa-fake-upload-key' in json.dumps(ss)}")
+>       assert "qa-fake-upload-key" not in json.dumps(ss), "upload key persisted in sessionStorage"
+E       AssertionError: upload key persisted in sessionStorage
+E       assert 'qa-fake-upload-key' not in '{"chatbot.u...oad-key\\""}'
+E         
+E         'qa-fake-upload-key' is contained here:
+E           {"chatbot.uploadKey": "\"qa-fake-upload-key\""}
+E         ?                          ++++++++++++++++++
+
+qa/tests/test_ui_frontend.py:632: AssertionError
+=========================== short test summary info ============================
+FAILED qa/tests/test_backend_api.py::test_BE_029_logout_revokes_session - Ass...
+FAILED qa/tests/test_backend_api.py::test_BE_058_rate_limit_spoofed_forwarded_for
+FAILED qa/tests/test_backend_live.py::test_BE_005_unrecognised_auth_mode_fails_closed
+FAILED qa/tests/test_backend_llm_failures.py::test_BE_065_malformed_upstream_follows_documented_contract
+FAILED qa/tests/test_ui_frontend.py::test_UI_021_question_typed_while_waiting_is_not_lost
+FAILED qa/tests/test_ui_frontend.py::test_UI_023_follow_up_after_very_long_answer
+FAILED qa/tests/test_ui_frontend.py::test_FE_014_no_secret_in_session_storage
+SKIPPED [1] qa/tests/test_backend_api.py:172: BLOCKED: no Azure OpenAI credentials in this environment (live LLM needed to judge recall)
+SKIPPED [1] qa/tests/test_backend_api.py:331: BLOCKED: answer quality/grounding/'I don't know' behaviour of the real model needs Azure OpenAI + AI Search
+SKIPPED [1] qa/tests/test_backend_api.py:413: BLOCKED: resistance of the real model to prompt injection / system-prompt extraction needs live Azure OpenAI
+7 failed, 150 passed, 3 skipped in 247.47s (0:04:07)
+pytest exit code: 1

@@ -98,12 +98,18 @@ class RateLimiter:
             return True
 
 
-def client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        first = forwarded.split(",")[0].strip()
+def client_ip(request: Request, trust_forwarded_for: bool = False) -> str:
+    """The address rate limits and the sign-in lockout are keyed on.
+
+    X-Forwarded-For is only used behind a trusted proxy (App Service, or TRUST_FORWARDED_FOR=true), and
+    then only its last entry: that one is added by the proxy itself, while earlier entries come from the
+    client and can be forged.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "") if trust_forwarded_for else ""
+    if forwarded.strip(", "):
+        last = forwarded.rstrip(", ").split(",")[-1].strip()
         # App Service appends the port to IPv4 addresses (1.2.3.4:5678).
-        return first.rsplit(":", 1)[0] if first.count(":") == 1 else first
+        return last.rsplit(":", 1)[0] if last.count(":") == 1 else last
     return request.client.host if request.client else "unknown"
 
 
@@ -130,6 +136,8 @@ def create_app(settings: Settings | None = None, components: Components | None =
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     _configure_telemetry()
 
+    if settings.auth_mode not in ("none", "password"):
+        raise RuntimeError(f"AUTH_MODE must be 'none' or 'password', not {settings.auth_mode!r}")
     if settings.is_azure and settings.missing_azure_settings():
         missing = ", ".join(settings.missing_azure_settings())
         raise RuntimeError(f"CHATBOT_MODE=azure but these settings are missing: {missing}")
@@ -138,6 +146,9 @@ def create_app(settings: Settings | None = None, components: Components | None =
     setup = SearchSetup(components.search)
     limiter = RateLimiter(settings.rate_limit_per_minute)
     gate = PasswordGate(settings.demo_password) if settings.auth_mode == "password" else None
+
+    def caller(request: Request) -> str:
+        return client_ip(request, settings.trust_forwarded_for)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -215,7 +226,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
             return _error(404, "not_enabled", "Sign-in is not enabled for this deployment.")
         if not gate.configured:
             raise NotConfigured("Sign-in is not configured yet: the demo password is missing or not readable from Key Vault.")
-        client = client_ip(request)
+        client = caller(request)
         if gate.locked(client):
             return _error(429, "locked", "Too many wrong passwords. Try again in 15 minutes.")
         if not gate.check(client, body.password):
@@ -227,7 +238,9 @@ def create_app(settings: Settings | None = None, components: Components | None =
         return response
 
     @app.post("/api/logout", tags=["sign-in"])
-    def logout():
+    def logout(request: Request):
+        if gate is not None:
+            gate.revoke(request.cookies.get(COOKIE_NAME))
         response = JSONResponse({"signedIn": False})
         response.delete_cookie(COOKIE_NAME, path="/")
         return response
@@ -237,7 +250,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
               responses={422: {"description": "Invalid request"}, 429: {"description": "Too many requests"},
                          502: {"description": "Upstream failure"}, 503: {"description": "Service busy"}})
     def chat(body: ChatRequest, request: Request):
-        if not limiter.allow(client_ip(request)):
+        if not limiter.allow(caller(request)):
             return _error(429, "rate_limited", "Too many questions in a short time. Please wait a minute.")
         result = components.chat.answer(body.message, [m.model_dump() for m in body.history])
         return ChatResponse(answer=result.answer,

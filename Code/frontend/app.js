@@ -1,12 +1,14 @@
 // AI Based Chatbot – chat page. Plain JavaScript, no build step.
 // The conversation lives in this tab (sessionStorage) and is sent with each question so the
 // backend can resolve follow-ups. Model output is rendered with DOM text nodes, never innerHTML.
+// The upload key is kept in memory only, never in browser storage.
 (() => {
   "use strict";
 
   const MAX_HISTORY = 12; // messages sent with each question (the backend trims further)
+  const MAX_HISTORY_CHARS = 8000; // per message, the API's limit for history entries
   const STORE_KEY = "chatbot.conversation";
-  const KEY_KEY = "chatbot.uploadKey";
+  const OLD_KEY_KEY = "chatbot.uploadKey"; // where earlier versions stored the upload key
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -30,6 +32,8 @@
   let conversation = storage.get(STORE_KEY, []);
   let busy = false;
   let lastQuestion = null;
+  let uploadKey = "";
+  storage.remove(OLD_KEY_KEY);
 
   // ------------------------------------------------------------------ rendering
   function el(tag, attrs = {}, ...children) {
@@ -154,7 +158,7 @@
     if (busy || !question.trim()) return;
     lastQuestion = question;
     showError("");
-    const history = conversation.slice(-MAX_HISTORY).map(({ role, content }) => ({ role, content }));
+    const history = conversation.slice(-MAX_HISTORY).map(({ role, content }) => ({ role, content: content.slice(0, MAX_HISTORY_CHARS) }));
     conversation.push({ role: "user", content: question });
     render();
     setBusy(true);
@@ -188,7 +192,7 @@
   els.form.addEventListener("submit", (e) => {
     e.preventDefault();
     const q = els.input.value.trim();
-    if (!q) return;
+    if (!q || busy) return; // while an answer is loading, keep the next question in the box
     els.input.value = "";
     autosize();
     ask(q);
@@ -245,12 +249,12 @@
   }
 
   els.docsButton.addEventListener("click", () => {
-    els.uploadKey.value = storage.get(KEY_KEY, "");
+    els.uploadKey.value = uploadKey;
     uploadStatus("");
     els.dialog.showModal();
     loadDocuments();
   });
-  els.uploadKey.addEventListener("change", () => storage.set(KEY_KEY, els.uploadKey.value));
+  els.uploadKey.addEventListener("change", () => { uploadKey = els.uploadKey.value; });
   els.refreshDocs.addEventListener("click", loadDocuments);
 
   els.uploadForm.addEventListener("submit", async (e) => {
@@ -265,7 +269,7 @@
     uploadStatus(`Uploading ${file.name}…`);
     try {
       const result = await api("/api/documents", { method: "POST", headers: keyHeaders(), body });
-      storage.set(KEY_KEY, els.uploadKey.value);
+      uploadKey = els.uploadKey.value;
       uploadStatus(result.indexing === "local"
         ? `${result.name} added.`
         : `${result.name} uploaded. Indexing ${result.indexing}; it is searchable in a few minutes.`);

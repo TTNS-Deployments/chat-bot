@@ -181,5 +181,5 @@ def test_BE_065_malformed_upstream_follows_documented_contract(tmp_path, record)
     r1, _ = ask(llm)
     r2, _ = ask(srch)
     record(actual=f"LLM reply with empty choices -> {r1.status_code} {r1.json()['error']['code']}; AI Search 200 with non-JSON body -> "
-                  f"{r2.status_code} {r2.json()['error']['code']} (server log shows an 'Unhandled error' traceback)")
+                  f"{r2.status_code} {r2.json()['error']['code']}")
     assert (r1.status_code, r2.status_code) == (502, 502)

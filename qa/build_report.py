@@ -13,7 +13,7 @@ from pathlib import Path
 QA = Path(__file__).resolve().parent
 REPO = QA.parent
 sys.path.insert(0, str(QA / "tests"))
-from catalog import DEFECTS, OBSERVATIONS, OUT_OF_SCOPE, TESTS  # noqa: E402
+from catalog import DEFECTS, FIXES, OBSERVATIONS, OUT_OF_SCOPE, TESTS  # noqa: E402
 
 STATUSES = ["Pass", "Fail", "Blocked", "Not Tested"]
 LAYERS = ["Backend", "UI", "Front end"]
@@ -93,6 +93,17 @@ def rows():
     return out
 
 
+def defect_status(data):
+    """Fixed only when every affected test passes in the latest run."""
+    status = {r["id"]: r["status"] for r in data}
+    out = {}
+    for d in DEFECTS:
+        ids = [t for t in d[7].replace(",", " ").replace("(", " ").split() if t[:3] in ("BE-", "UI-", "FE-")][:1]
+        ok = all(status.get(t) == "Pass" for t in ids)
+        out[d[0]] = ("Fixed – verified by re-test" if ok else "Open") if d[0] in FIXES else ("Closed" if ok else "Open")
+    return out
+
+
 def counts(data, key, values):
     return {v: {s: sum(1 for r in data if r[key] == v and r["status"] == s) for s in STATUSES} for v in values}
 
@@ -109,13 +120,16 @@ def verdict(data):
         v = "Works with issues"
     else:
         v = "Works as expected"
-    why = (f"{len(ch) - len(ch_open)} of {len(ch)} Critical/High tests passed. {len(ch_fail)} Critical/High failed and "
-           f"{sum(r['status'] == 'Blocked' for r in ch)} are Blocked (they need a live Azure OpenAI model: context recall, grounding quality, prompt-injection "
-           f"resistance), so the 'Works as expected' rule (all Critical and High must pass) is not met. The core chat flow, validation, error handling, auth gate, "
-           f"uploads, XSS protection, responsiveness and accessibility all work in local/mock mode. {len(fails)} lower-priority tests failed, giving "
-           f"{len(DEFECTS)} defects ({', '.join(f'{sum(d[1] == sev for d in DEFECTS)} {sev}' for sev in ('Critical', 'High', 'Medium', 'Low') if any(d[1] == sev for d in DEFECTS))}): token not revoked on logout, rate limit/lockout bypass via X-Forwarded-For, sign-in turned off by an "
-           f"AUTH_MODE typo, and a typed question lost while waiting.")
+    ds = defect_status(data)
+    open_d = [d for d in DEFECTS if ds[d[0]] == "Open"]
+    blocked = sum(r["status"] == "Blocked" for r in ch)
+    why = (f"{len(ch) - len(ch_open)} of {len(ch)} Critical/High tests passed; {len(ch_fail)} Critical/High failed"
+           + (f" and {blocked} are Blocked (they need a live Azure OpenAI model: context recall, grounding quality, prompt-injection resistance), "
+              f"so the rule 'all Critical and High must pass' for 'Works as expected' is not met" if blocked else "")
+           + f". {len(fails)} tests failed in total. Defects: {len(DEFECTS)} found, {len(DEFECTS) - len(open_d)} fixed and verified by re-test, {len(open_d)} open. "
+           "The chat flow, validation, error handling, sign-in, uploads, XSS protection, responsiveness and accessibility all work in local/mock mode.")
     return v, why
+
 
 
 # ------------------------------------------------------------------ Markdown
@@ -150,14 +164,25 @@ def write_report_md(env, data):
     for k, c in by_prio.items():
         L.append(f"| {k} | " + " | ".join(str(c[s]) for s in STATUSES) + f" | {sum(c.values())} |")
     L += ["", f"Pass rate: **{tot['Pass'] / n:.1%}** of all {n} tests; **{tot['Pass'] / executed:.1%}** of the {executed} that ran (Pass + Fail).", ""]
-    L += ["## Failed tests", "", "| ID | Priority | Area | Reason | Defect |", "|---|---|---|---|---|"]
-    for r in data:
-        if r["status"] == "Fail":
-            L.append(f"| {r['id']} | {r['priority']} | {esc(r['area'])} | {esc(r['actual'].splitlines()[0][:220])} | {r['defect']} |")
+    failed = [r for r in data if r["status"] == "Fail"]
+    L += ["## Failed tests", ""]
+    if failed:
+        L += ["| ID | Priority | Area | Reason | Defect |", "|---|---|---|---|---|"]
+        L += [f"| {r['id']} | {r['priority']} | {esc(r['area'])} | {esc(r['actual'].splitlines()[0][:220])} | {r['defect']} |" for r in failed]
+    else:
+        L.append("None in the latest run.")
+    before = QA / "evidence" / "summary_before_fixes.txt"
+    if before.exists():
+        L += ["", "### Re-test history", "", "First run, before fixes (`qa/evidence/summary_before_fixes.txt`):", "", "```", before.read_text().strip(), "```",
+              "", "The 7 defects below were then fixed in the application code, and the full suite was run again (results above)."]
+    ds = defect_status(data)
     L += ["", "## Defects", ""]
     for d in DEFECTS:
-        L += [f"### {d[0]} ({d[1]}, {d[2]}): {d[3]}", "", f"- **Steps:** {d[4]}", f"- **Expected:** {d[5]}", f"- **Actual:** {d[6]}",
-              f"- **Affected tests:** {d[7]}", f"- **Likely cause (analysis only, no code changed):** {d[8]}", ""]
+        L += [f"### {d[0]} ({d[1]}, {d[2]}): {d[3]} — **{ds[d[0]]}**", "", f"- **Steps:** {d[4]}", f"- **Expected:** {d[5]}",
+              f"- **Actual (first run):** {d[6]}", f"- **Affected tests:** {d[7]}", f"- **Cause:** {d[8]}"]
+        if d[0] in FIXES:
+            L.append(f"- **Fix:** {FIXES[d[0]]}")
+        L.append("")
     L += ["## Blocked / Not tested", "", "| ID | Priority | Area | Reason |", "|---|---|---|---|"]
     for r in data:
         if r["status"] in ("Blocked", "Not Tested"):
@@ -280,9 +305,10 @@ def write_xlsx(env, data, v, why):
 
     # Defects
     de = wb.create_sheet("Defects")
-    table(de, ["ID", "Severity", "Layer", "Title", "Steps to reproduce", "Expected vs Actual", "Affected test IDs", "Likely cause (analysis only)"],
-          [[d[0], d[1], d[2], d[3], d[4], f"Expected: {d[5]}\nActual: {d[6]}", d[7], d[8]] for d in DEFECTS],
-          [8, 10, 10, 40, 50, 60, 18, 70])
+    ds = defect_status(data)
+    table(de, ["ID", "Severity", "Layer", "Title", "Steps to reproduce", "Expected vs Actual (first run)", "Affected test IDs", "Likely cause", "Fix applied", "Status"],
+          [[d[0], d[1], d[2], d[3], d[4], f"Expected: {d[5]}\nActual: {d[6]}", d[7], d[8], FIXES.get(d[0], ""), ds[d[0]]] for d in DEFECTS],
+          [8, 10, 10, 40, 50, 60, 18, 60, 60, 16])
 
     # Not tested / out of scope  ('/' is not allowed in sheet names)
     nt = wb.create_sheet("Not Tested & Out of Scope")

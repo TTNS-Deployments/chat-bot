@@ -6,11 +6,11 @@
     ],
     "status": "Pass",
     "props": {
-      "actual": "exit 0: 109 passed in 6.00s",
+      "actual": "exit 0: 109 passed in 4.62s",
       "evidence": "make test  ==  .venv/bin/python -m pytest Code/backend -q"
     },
     "message": "",
-    "duration_s": 6.435
+    "duration_s": 5.094
   },
   {
     "id": "BE-002",
@@ -20,10 +20,10 @@
     "status": "Pass",
     "props": {
       "actual": "healthy after 0.55s: {'status': 'ok', 'version': '1.0.0', 'mode': 'local', 'searchSetup': 'not-applicable'}; error/warning log lines: []",
-      "evidence": "cd Code/backend && RATE_LIMIT_PER_MINUTE=0 .venv/bin/python -m uvicorn chatbot.main:app --port 53861"
+      "evidence": "cd Code/backend && RATE_LIMIT_PER_MINUTE=0 .venv/bin/python -m uvicorn chatbot.main:app --port 42007"
     },
     "message": "",
-    "duration_s": 0.023
+    "duration_s": 0.02
   },
   {
     "id": "BE-003",
@@ -33,10 +33,10 @@
     "status": "Pass",
     "props": {
       "actual": "exit code=1; message: RuntimeError: CHATBOT_MODE=azure but these settings are missing: AZURE_OPENAI_ENDPOINT, AZURE_SEARCH_ENDPOINT, AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_RESOURCE_ID; traceback printed=True",
-      "evidence": "cd Code/backend && CHATBOT_MODE=azure .venv/bin/python -m uvicorn chatbot.main:app --port 49911"
+      "evidence": "cd Code/backend && CHATBOT_MODE=azure .venv/bin/python -m uvicorn chatbot.main:app --port 47897"
     },
     "message": "",
-    "duration_s": 0.484
+    "duration_s": 0.474
   },
   {
     "id": "BE-004",
@@ -46,23 +46,23 @@
     "status": "Pass",
     "props": {
       "actual": "started=True; config={'title': 'AI Based Chatbot', 'subtitle': 'AI based chatbot platform', 'mode': 'local', 'authMode': 'none', 'uploadEnabled': False, 'maxUploadMb': 16}; chat=200; invalid values silently replaced by defaults (no warning in log: True)",
-      "evidence": "cd Code/backend && CHATBOT_MODE=bogus RATE_LIMIT_PER_MINUTE=abc MAX_UPLOAD_MB=lots SEARCH_TOP_K=-5 MAX_HISTORY_TURNS=x ALLOW_DOCUMENT_UPLOAD=maybe .venv/bin/python -m uvicorn chatbot.main:app --port 40667"
+      "evidence": "cd Code/backend && CHATBOT_MODE=bogus RATE_LIMIT_PER_MINUTE=abc MAX_UPLOAD_MB=lots SEARCH_TOP_K=-5 MAX_HISTORY_TURNS=x ALLOW_DOCUMENT_UPLOAD=maybe .venv/bin/python -m uvicorn chatbot.main:app --port 54151"
     },
     "message": "",
-    "duration_s": 0.758
+    "duration_s": 0.77
   },
   {
     "id": "BE-005",
     "tests": [
       "qa/tests/test_backend_live.py::test_BE_005_unrecognised_auth_mode_fails_closed"
     ],
-    "status": "Fail",
+    "status": "Pass",
     "props": {
-      "actual": "started=True; authMode reported='pasword'; unauthenticated chat=200; GET / = 200 (chat page and API open without sign-in, Sign out button hidden)",
-      "evidence": "cd Code/backend && AUTH_MODE=pasword DEMO_PASSWORD=<test-value> .venv/bin/python -m uvicorn chatbot.main:app --port 33043"
+      "actual": "app refused to start: exit code=1; RuntimeError: AUTH_MODE must be 'none' or 'password', not 'pasword'",
+      "evidence": "cd Code/backend && AUTH_MODE=pasword DEMO_PASSWORD=<test-value> .venv/bin/python -m uvicorn chatbot.main:app --port 58489"
     },
-    "message": "AssertionError: AUTH_MODE typo silently disables sign-in (fails open)\nassert (not True or 200 == 401)\n +  where True = Server(url='http://127.0.0.1:33043', proc=<Popen: returncode: None args: ['/workspaces/chat-bot/.venv/bin/python', '-m...ode/backend && AUTH_MODE=pasword DEMO_PASSWORD=<test-value> .venv/bin/python -m uvicorn chatbot.main:app --port 33043').started",
-    "duration_s": 0.82
+    "message": "",
+    "duration_s": 0.707
   },
   {
     "id": "BE-052",
@@ -71,10 +71,10 @@
     ],
     "status": "Pass",
     "props": {
-      "actual": "chat 200; sensitive strings found in server logs: 0; example log line: ['2026-10-24 10:25:34,644 INFO chatbot.service: Answered a question: 2 history messages, 2 sources, 2 cited']"
+      "actual": "chat 200; sensitive strings found in server logs: 0; example log line: ['2026-10-24 10:43:32,636 INFO chatbot.service: Answered a question: 2 history messages, 2 sources, 2 cited']"
     },
     "message": "",
-    "duration_s": 0.563
+    "duration_s": 0.572
   },
   {
     "id": "BE-053",
@@ -83,10 +83,10 @@
     ],
     "status": "Pass",
     "props": {
-      "actual": "83 tracked files scanned; matches outside unit tests: []; matches in unit-test fixtures (dummy values): [('Code/backend/tests/test_api.py', 61), ('Code/backend/tests/test_auth.py', 21), ('Code/backend/tests/test_auth.py', 40), ('Code/backend/tests/test_auth.py', 54), ('Code/backend/tests/test_auth.py', 63), ('Code/backend/tests/test_search.py', 147), ('Code/backend/tests/test_search.py', 148)]"
+      "actual": "106 tracked files scanned; matches outside unit tests: []; matches in unit-test fixtures (dummy values): [('Code/backend/tests/test_api.py', 61), ('Code/backend/tests/test_auth.py', 21), ('Code/backend/tests/test_auth.py', 40), ('Code/backend/tests/test_auth.py', 54), ('Code/backend/tests/test_auth.py', 63), ('Code/backend/tests/test_search.py', 147), ('Code/backend/tests/test_search.py', 148), ('qa/evidence/junit.xml', 52), ('qa/tests/test_backend_api.py', 212), ('qa/tests/test_backend_api.py', 228), ('qa/tests/test_backend_api.py', 230), ('qa/tests/test_backend_api.py', 241), ('qa/tests/test_backend_api.py', 260), ('qa/tests/test_backend_api.py', 261), ('qa/tests/test_backend_api.py', 264), ('qa/tests/test_backend_api.py', 265), ('qa/tests/test_backend_api.py', 277), ('qa/tests/test_backend_api.py', 278), ('qa/tests/test_backend_api.py', 291), ('qa/tests/test_backend_api.py', 299), ('qa/tests/test_backend_api.py', 418), ('qa/tests/test_backend_api.py', 418), ('qa/tests/test_backend_api.py', 452), ('qa/tests/test_backend_live.py', 63), ('qa/tests/test_backend_live.py', 88), ('qa/tests/test_backend_llm_failures.py', 21), ('qa/tests/test_backend_llm_failures.py', 129)]"
     },
     "message": "",
-    "duration_s": 0.043
+    "duration_s": 0.121
   },
   {
     "id": "BE-054",
@@ -107,10 +107,10 @@
     ],
     "status": "Pass",
     "props": {
-      "actual": "12 sequential requests (mock LLM): median 2.6 ms, max 11.2 ms"
+      "actual": "12 sequential requests (mock LLM): median 3.5 ms, max 7.4 ms"
     },
     "message": "",
-    "duration_s": 0.058
+    "duration_s": 0.066
   },
   {
     "id": "BE-056",
@@ -119,10 +119,10 @@
     ],
     "status": "Pass",
     "props": {
-      "actual": "10 simultaneous: statuses [200], all answered=True, wall 0.25s, slowest 0.24s | 50 simultaneous: statuses [200], all answered=True, wall 1.01s, slowest 0.86s"
+      "actual": "10 simultaneous: statuses [200], all answered=True, wall 0.21s, slowest 0.20s | 50 simultaneous: statuses [200], all answered=True, wall 1.09s, slowest 0.98s"
     },
     "message": "",
-    "duration_s": 1.26
+    "duration_s": 1.306
   },
   {
     "id": "BE-061",
@@ -135,7 +135,7 @@
       "evidence": "cd Code/backend && python -m chatbot ask \"What does the warranty cover?\""
     },
     "message": "",
-    "duration_s": 0.149
+    "duration_s": 0.123
   },
   {
     "id": "BE-062",
@@ -145,9 +145,9 @@
     "status": "Pass",
     "props": {
       "actual": "build ok; container healthz=True {\"status\":\"ok\",\"version\":\"1.0.0\",\"mode\":\"local\",\"searchSetup\":\"not-applicable\"}; chat=200",
-      "evidence": "docker build -t qa-ai-based-chatbot:test . && docker run -p 48933:8000 qa-ai-based-chatbot:test"
+      "evidence": "docker build -t qa-ai-based-chatbot:test . && docker run -p 38809:8000 qa-ai-based-chatbot:test"
     },
     "message": "",
-    "duration_s": 9.651
+    "duration_s": 8.152
   }
 ]

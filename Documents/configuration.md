@@ -24,7 +24,7 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `AZURE_STORAGE_CONTAINER` | `documents` | Container the indexer reads |
 | `AZURE_STORAGE_RESOURCE_ID` | `/subscriptions/…/storageAccounts/<name>` | Lets the indexer connect with its managed identity (no key) |
 | `ALLOW_DOCUMENT_UPLOAD` | `True` | Show and accept uploads |
-| `AUTH_MODE` | `none` | `password` puts the chat page behind one shared password |
+| `AUTH_MODE` | `none` | `none` or `password` (puts the chat page behind one shared password). Any other value stops the app at startup, so a typo cannot switch sign-in off. |
 | `DEMO_PASSWORD` | `@Microsoft.KeyVault(VaultName=…;SecretName=demo-password)` | The shared password (only with `AUTH_MODE=password`). If it is empty or the reference is unresolved, sign-in is refused. |
 | `AZURE_SEARCH_API_KEY`, `AZURE_SEARCH_DATASOURCE_CONNECTION`, `AZURE_OPENAI_EMBEDDING_KEY` | Key Vault references | Only for a Free-tier search service, which has no managed identity: the search admin key, the storage connection string for the indexer, and the embedding key for the indexer and vectorizer |
 | `WEBSITE_RUN_FROM_PACKAGE`, `PYTHONPATH` | SAS URL, `/home/site/wwwroot/.packages` | Only for a run-from-package deployment (`deploy.sh --code-via-arm`) |
@@ -42,6 +42,7 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `CHAT_TEMPERATURE` | not sent | Sampling temperature, only used when `CHAT_REASONING_EFFORT=none`. Models that reject it are detected and called without it. |
 | `CHAT_MAX_TOKENS` | `2000` | Maximum answer length (`max_completion_tokens`); for reasoning models this includes the reasoning tokens. |
 | `RATE_LIMIT_PER_MINUTE` | `20` | Questions per client IP per minute, per instance. `0` disables the limit. |
+| `TRUST_FORWARDED_FOR` | `true` on App Service, else `false` | Take the client IP for the rate limit and sign-in lockout from the last `X-Forwarded-For` entry (added by the proxy). Set `true` only behind a proxy you trust; otherwise the header is ignored, because clients can forge it. |
 | `MAX_UPLOAD_MB` | `16` | Upload size limit. |
 | `AZURE_SEARCH_API_VERSION` | `2024-07-01` | AI Search REST API version. |
 | `AZURE_CLIENT_ID` | | Client ID of a user-assigned managed identity, if you switch the web app to one. |
