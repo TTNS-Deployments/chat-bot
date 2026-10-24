@@ -1,0 +1,122 @@
+[
+  {
+    "id": "BE-031",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_031_llm_timeout"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "502 {\"error\":{\"code\":\"upstream_error\",\"message\":\"The service could not answer right now. Please try again shortly.\"}} in 0.07s",
+      "evidence": "mock transport raises httpx.ReadTimeout"
+    },
+    "message": "",
+    "duration_s": 0.083
+  },
+  {
+    "id": "BE-032",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_032_llm_rate_limited"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "503 {\"error\":{\"code\":\"busy\",\"message\":\"The language model is busy right now. Please try again in a moment.\"}} in 0.00s"
+    },
+    "message": "",
+    "duration_s": 0.009
+  },
+  {
+    "id": "BE-033",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_033_llm_server_error[500]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_033_llm_server_error[502]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_033_llm_server_error[503]"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "upstream 500 -> 502 {\"error\":{\"code\":\"upstream_error\",\"message\":\"The service could not answer right now. Please try again shortly.\"}} in 0.00s | upstream 502 -> 502 {\"error\":{\"code\":\"upstream_error\",\"message\":\"The service could not answer right now. Please try again shortly.\"}} in 0.00s | upstream 503 -> 502 {\"error\":{\"code\":\"upstream_error\",\"message\":\"The service could not answer right now. Please try again shortly.\"}} in 0.00s"
+    },
+    "message": "",
+    "duration_s": 0.026999999999999996
+  },
+  {
+    "id": "BE-034",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_034_llm_empty_response[]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_034_llm_empty_response[None]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_034_llm_empty_response[   ]"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "content='' -> 200 {\"answer\":\"I could not produce an answer. Please try rephrasing the question.\",\"citations\":[]} | content=None -> 200 {\"answer\":\"I could not produce an answer. Please try rephrasing the question.\",\"citations\":[]} | content='   ' -> 200 {\"answer\":\"I could not produce an answer. Please try rephrasing the question.\",\"citations\":[]}"
+    },
+    "message": "",
+    "duration_s": 0.078
+  },
+  {
+    "id": "BE-035",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_035_llm_malformed_response[non-JSON body-<lambda>]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_035_llm_malformed_response[JSON without choices-<lambda>]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_035_llm_malformed_response[empty choices-<lambda>]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_035_llm_malformed_response[truncated JSON-<lambda>]"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "non-JSON body -> 500 {\"error\":{\"code\":\"internal_error\",\"message\":\"Something went wrong. Please try again.\"}} in 0.02s | JSON without choices -> 500 {\"error\":{\"code\":\"internal_error\",\"message\":\"Something went wrong. Please try again.\"}} in 0.01s | empty choices -> 500 {\"error\":{\"code\":\"internal_error\",\"message\":\"Something went wrong. Please try again.\"}} in 0.01s | truncated JSON -> 500 {\"error\":{\"code\":\"internal_error\",\"message\":\"Something went wrong. Please try again.\"}} in 0.02s"
+    },
+    "message": "",
+    "duration_s": 0.072
+  },
+  {
+    "id": "BE-036",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_036_llm_content_filter"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "prompt filtered -> 400 {\"error\":{\"code\":\"content_filtered\",\"message\":\"The question was blocked by the content filter. Please rephrase it.\"}}; answer filtered -> 400 {\"error\":{\"code\":\"content_filtered\",\"message\":\"The answer was blocked by the content filter. Please rephrase the question.\"}}"
+    },
+    "message": "",
+    "duration_s": 0.021
+  },
+  {
+    "id": "BE-037",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_037_hung_llm_is_bounded"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "production client timeout=60.0, max_retries=2; non-responding LLM -> UpstreamError (HTTP 502) after 181.5s (3 connection attempts). Front end fetch has no timeout, so the user waits this long."
+    },
+    "message": "",
+    "duration_s": 181.718
+  },
+  {
+    "id": "BE-038",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_038_search_failures[search 500-<lambda>-502-upstream_error]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_038_search_failures[search 503-<lambda>-503-busy]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_038_search_failures[search 429-<lambda>-503-busy]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_038_search_failures[search 403-<lambda>-502-upstream_error]",
+      "qa/tests/test_backend_llm_failures.py::test_BE_038_search_failures[search timeout-timeout-502-upstream_error]"
+    ],
+    "status": "Pass",
+    "props": {
+      "actual": "search 500 -> 502 {\"error\":{\"code\":\"upstream_error\",\"message\":\"The service could not answer right now. Please try again shortly.\"}} in 0.00s | search 503 -> 503 {\"error\":{\"code\":\"busy\",\"message\":\"Azure AI Search is busy. Try again in a moment.\"}} in 0.00s | search 429 -> 503 {\"error\":{\"code\":\"busy\",\"message\":\"Azure AI Search is busy. Try again in a moment.\"}} in 0.00s | search 403 -> 502 {\"error\":{\"code\":\"upstream_error\",\"message\":\"The service could not answer right now. Please try again shortly.\"}} in 0.00s | search timeout -> 502 {\"error\":{\"code\":\"upstream_error\",\"message\":\"The service could not answer right now. Please try again shortly.\"}} in 0.00s"
+    },
+    "message": "",
+    "duration_s": 0.041
+  },
+  {
+    "id": "BE-065",
+    "tests": [
+      "qa/tests/test_backend_llm_failures.py::test_BE_065_malformed_upstream_follows_documented_contract"
+    ],
+    "status": "Fail",
+    "props": {
+      "actual": "LLM reply with empty choices -> 500 internal_error; AI Search 200 with non-JSON body -> 500 internal_error (server log shows an 'Unhandled error' traceback)"
+    },
+    "message": "assert (500, 500) == (502, 502)\n  \n  At index 0 diff: 500 != 502\n  Use -v to get more diff",
+    "duration_s": 0.021
+  }
+]
