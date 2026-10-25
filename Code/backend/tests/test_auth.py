@@ -99,3 +99,11 @@ def test_pages_and_answers_are_not_cached():
     c = client()
     assert c.get("/login.html").headers["cache-control"] == "no-store"
     assert c.post("/api/chat", json={"message": "hi"}).headers["cache-control"] == "no-store"
+
+
+def test_sign_in_page_assets_are_public():
+    c = client()
+    for path in ("/login.html", "/login.js", "/app.css", "/favicon.svg", "/ttbs-logo.png"):
+        r = c.get(path, follow_redirects=False)
+        assert r.status_code == 200, path
+    assert c.get("/ttbs-logo.png").headers["content-type"] == "image/png"

@@ -20,7 +20,7 @@ MAX_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
 
 # Reachable without a session: the health probe and everything the sign-in page needs.
-PUBLIC_PATHS = frozenset({"/healthz", "/login.html", "/login.js", "/app.css", "/favicon.svg",
+PUBLIC_PATHS = frozenset({"/healthz", "/login.html", "/login.js", "/app.css", "/favicon.svg", "/ttbs-logo.png",
                           "/api/login", "/api/logout", "/api/config"})
 
 

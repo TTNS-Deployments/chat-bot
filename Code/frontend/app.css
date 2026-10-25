@@ -60,6 +60,13 @@ button, input, textarea { font: inherit; color: inherit; }
 .topbar { flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
 .brand h1 { margin: 0; font-size: 1.15rem; line-height: 1.2; white-space: nowrap; }
+.brand-logo { height: 36px; width: auto; flex-shrink: 0; }
+.brand-divider { align-self: stretch; width: 1px; background: var(--rule); }
+.login-logo { height: 48px; width: auto; max-width: 100%; }
+@media (prefers-color-scheme: dark) {
+  /* The logo's blue needs a light background to stay readable. */
+  .brand-logo, .login-logo { background: #ffffff; border-radius: 8px; padding: 4px 8px; box-sizing: content-box; }
+}
 .subtitle { margin: 0; color: var(--muted); font-size: .875rem; }
 .actions { display: flex; gap: 8px; flex-shrink: 0; }
 
@@ -148,6 +155,9 @@ dialog input[type="password"] { width: 100%; padding: 8px 10px; border: 1px soli
 .doc-list li span { overflow-wrap: anywhere; }
 
 @media (max-width: 560px) {
+  .brand { gap: 8px; }
+  .brand-logo { height: 26px; }
+  .brand h1 { font-size: 1rem; }
   .message { max-width: 100%; }
   .topbar { padding-top: 8px; padding-bottom: 8px; row-gap: 8px; }
   .actions { flex: 1 1 100%; justify-content: flex-end; }
