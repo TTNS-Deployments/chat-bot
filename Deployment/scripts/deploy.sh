@@ -122,10 +122,14 @@ if [[ $SKIP_INFRA -eq 0 ]]; then
 
   PLAN="$(preset existingAppServicePlanName)"
   if [[ -n "$PLAN" ]]; then
-    PLAN_INFO="$(az appservice plan show -g "$RG" -n "$PLAN" --query "[location, to_string(reserved)]" -o tsv 2>/dev/null || true)"
+    # A Linux plan has kind "linux" and/or reserved=true; depending on the API version one of them can be empty.
+    PLAN_INFO="$(az appservice plan show -g "$RG" -n "$PLAN" --query "[location, kind, to_string(reserved)]" -o tsv 2>/dev/null || true)"
     [[ -n "$PLAN_INFO" ]] || { echo "App Service plan $PLAN not found in $RG." >&2; exit 1; }
-    IFS=$'\t' read -r PLAN_LOCATION PLAN_LINUX <<<"$PLAN_INFO"
-    [[ "$PLAN_LINUX" == "true" ]] || { echo "App Service plan $PLAN is not a Linux plan." >&2; exit 1; }
+    IFS=$'\t' read -r PLAN_LOCATION PLAN_KIND PLAN_RESERVED <<<"$PLAN_INFO"
+    if [[ "${PLAN_KIND,,}" != *linux* && "${PLAN_RESERVED,,}" != "true" ]]; then
+      echo "App Service plan $PLAN is not a Linux plan (kind: ${PLAN_KIND:-none}, reserved: ${PLAN_RESERVED:-none})." >&2
+      exit 1
+    fi
     PRESET_LOCATION="$(preset location)"
     if [[ -n "$PRESET_LOCATION" && "$(echo "$PLAN_LOCATION" | tr -d ' ' | tr '[:upper:]' '[:lower:]')" != "$PRESET_LOCATION" ]]; then
       echo "App Service plan $PLAN is in $PLAN_LOCATION, but the preset's location is $PRESET_LOCATION. They must match." >&2
