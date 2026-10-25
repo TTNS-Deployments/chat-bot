@@ -78,7 +78,7 @@ retry() {
 
 echo "==> Uploading ${#FILES[@]} file(s) to $ACCOUNT/$CONTAINER"
 if [[ $USE_KEY -eq 1 ]]; then
-  KEY="$(az storage account keys list -g "$RG" -n "$ACCOUNT" --query "[0].value" -o tsv)"
+  KEY="$(az storage account keys list -g "$RG" -n "$ACCOUNT" --query "[0].value" -o tsv --only-show-errors)"
 fi
 for f in "${FILES[@]}"; do
   echo "  $(basename "$f")"

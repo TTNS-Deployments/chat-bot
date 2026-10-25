@@ -23,6 +23,7 @@ For anyone (person or AI session) picking up this work. Update it after each pie
 | 2026-10-22 | Free AI Search has no managed identity, so in that mode the template copies the search admin key, a storage connection string and the embedding key into Key Vault; the app and the indexer use them. Basic and higher keep managed identities. |
 | 2026-10-22 | Demo resource names start with `chatbot-` (`shortResourceNames`), plus a fixed 6-character suffix where Azure needs globally unique names. |
 | 2026-10-22 | Cloud Shell code deployment: `package.py --vendor` (dependencies in `.packages`), upload with the storage account key, `WEBSITE_RUN_FROM_PACKAGE` SAS URL (1 year). `deploy.sh` passes the current package URL into infrastructure redeploys so they keep the running code. |
+| 2026-10-25 | `deploy.sh` reads the shared plan's location and kind one value at a time: the plan returns `reserved: null` and `kind: linux`, and `-o tsv` prints list queries one value per line. |
 | 2026-10-22 | Secrets (`demoPassword`, `uploadApiKey`) are passed with `--param`, written to Key Vault only when given; redeploys keep them. `deploy.sh` generates the upload key on the first deployment and prints it once. |
 
 ## Status
@@ -32,7 +33,7 @@ For anyone (person or AI session) picking up this work. Update it after each pie
 | App, tests (109), Bicep/ARM, portal form, presets, scripts, docs | Done; tested locally and against a mock Azure CLI |
 | Demo preset (`demo.parameters.json`, `Deployment/environments/demo.env`), password sign-in, Free-search key mode, Cloud Shell code path | Done; not yet deployed |
 | Package with dependencies | Verified: runs on a clean Python 3.12 with only `.packages`, using the App Service startup command |
-| First live deployment of the demo | **Next step**, by the user in Cloud Shell (see `Documents/demo-deployment.md`) |
+| First live deployment of the demo | **Done 2026-10-25** from Cloud Shell: `deploy.sh -e demo`. Resource suffix `wewqam` (web app `chatbot-web-wewqam`, Key Vault `chatbot-kv-wewqam`, storage `chatbotstwewqam`). `/healthz` reported the search index ready. Secrets are in Key Vault only. |
 
 ## Not yet verified on Azure
 
@@ -42,6 +43,6 @@ For anyone (person or AI session) picking up this work. Update it after each pie
 
 ## Next steps
 
-1. User registers `Microsoft.Search` and runs the deploy command in `Documents/demo-deployment.md`.
-2. Verify: sign in, ask a question, upload a document; read the Log stream on errors.
+1. Verify the live demo: sign in, ask a question, upload a document; read the Log stream on errors.
+2. Later deployments: `cd ~/chat-bot && git pull && Deployment/scripts/deploy.sh -e demo` (no --param: stored secrets are kept).
 3. Regenerate `AI-Based-Chatbot-Artifacts.pdf` if the README changes are to be reflected in it.

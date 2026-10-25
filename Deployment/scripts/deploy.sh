@@ -209,7 +209,7 @@ AUTH_MODE="$(out authMode 2>/dev/null || echo none)"
 # Storage access with the account key, which the management API returns. Used by --code-via-arm,
 # where no Storage data-plane token is available.
 with_storage_key() {
-  AZURE_STORAGE_ACCOUNT="$STORAGE" AZURE_STORAGE_KEY="$(az storage account keys list -g "$RG" -n "$STORAGE" --query "[0].value" -o tsv)" "$@"
+  AZURE_STORAGE_ACCOUNT="$STORAGE" AZURE_STORAGE_KEY="$(az storage account keys list -g "$RG" -n "$STORAGE" --query "[0].value" -o tsv --only-show-errors)" "$@"
 }
 upload_samples_with_key() {
   echo "==> Uploading the sample documents to $STORAGE/$CONTAINER"
@@ -232,7 +232,7 @@ if [[ $SKIP_CODE -eq 0 ]]; then
     with_storage_key az storage blob upload -c code-packages -f "$ROOT/build/webapp.zip" -n "$BLOB" -o none --only-show-errors
     EXPIRY="$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc) + d.timedelta(days=365)).strftime("%Y-%m-%dT%H:%MZ"))')"
     PACKAGE_URL="$(with_storage_key az storage blob generate-sas -c code-packages -n "$BLOB" --permissions r \
-      --expiry "$EXPIRY" --https-only --full-uri -o tsv)"
+      --expiry "$EXPIRY" --https-only --full-uri -o tsv --only-show-errors)"
     # Older packages are no longer used; keep the three most recent.
     with_storage_key az storage blob list -c code-packages --query "sort_by([], &name)[].name" -o tsv \
       | head -n -3 | while read -r old; do with_storage_key az storage blob delete -c code-packages -n "$old" -o none; done
