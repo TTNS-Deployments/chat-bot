@@ -123,9 +123,11 @@ if [[ $SKIP_INFRA -eq 0 ]]; then
   PLAN="$(preset existingAppServicePlanName)"
   if [[ -n "$PLAN" ]]; then
     # A Linux plan has kind "linux" and/or reserved=true; depending on the API version one of them can be empty.
-    PLAN_INFO="$(az appservice plan show -g "$RG" -n "$PLAN" --query "[location, kind, to_string(reserved)]" -o tsv 2>/dev/null || true)"
-    [[ -n "$PLAN_INFO" ]] || { echo "App Service plan $PLAN not found in $RG." >&2; exit 1; }
-    IFS=$'\t' read -r PLAN_LOCATION PLAN_KIND PLAN_RESERVED <<<"$PLAN_INFO"
+    # One value per call: `-o tsv` prints a list of values one per line, which is easy to misread.
+    PLAN_LOCATION="$(az appservice plan show -g "$RG" -n "$PLAN" --query location -o tsv 2>/dev/null || true)"
+    [[ -n "$PLAN_LOCATION" ]] || { echo "App Service plan $PLAN not found in $RG." >&2; exit 1; }
+    PLAN_KIND="$(az appservice plan show -g "$RG" -n "$PLAN" --query kind -o tsv 2>/dev/null || true)"
+    PLAN_RESERVED="$(az appservice plan show -g "$RG" -n "$PLAN" --query reserved -o tsv 2>/dev/null || true)"
     if [[ "${PLAN_KIND,,}" != *linux* && "${PLAN_RESERVED,,}" != "true" ]]; then
       echo "App Service plan $PLAN is not a Linux plan (kind: ${PLAN_KIND:-none}, reserved: ${PLAN_RESERVED:-none})." >&2
       exit 1
