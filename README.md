@@ -16,6 +16,9 @@ The solution is a deployable template. You choose the tier (SKU) of every Azure 
 
 - **Grounded answers with citations.** Each question runs a hybrid (keyword + vector) search with semantic reranking. The best passages go to the chat model, which must answer only from them and cite them as `[1]`, `[2]`… The page shows the cited sources with a snippet.
 - **Follow-up questions.** The conversation stays in the browser tab and recent turns are sent with each question, so "and for returns?" works.
+- **Search one document.** Pick it under "Search in", or say "only in the warranty policy" / "specifically from the returns document". The filter is applied in the search query, the choice holds for follow-ups until you change it or say "search all documents", and the bot asks when the document is unclear. Unscoped answers say which document each fact comes from.
+- **Personal information hidden by default.** Names, addresses, phone numbers, emails, ID/account numbers and customer counts are masked in answers, exports and logs, and shown only when you ask for that item ("show the customer address").
+- **Download the chat.** "Download chat" (or typing "download chat history") saves the conversation as .txt, .json or .docx, with the same masking.
 - **Your documents.** PDF, Word, PowerPoint, Excel, HTML, Markdown, CSV, JSON and text. Add them on the chat page (protected by an upload key) or with a script. Azure AI Search splits, embeds and indexes them automatically.
 - **No keys.** The web app and the search service use managed identities; key-based access is switched off on Azure OpenAI, AI Search and Storage. The one secret, the upload key, lives in Key Vault. (The Free search tier has no managed identity, so in that mode the deployment puts the keys it needs in Key Vault.)
 - **Sized by you.** Every SKU lives in a parameters file with `dev`, `standard` and `prod` presets, is validated before deployment, and appears as a dropdown in the portal wizard.

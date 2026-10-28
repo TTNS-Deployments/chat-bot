@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Protocol, Sequence
 
+from .documents import DocumentStore
 from .search import CHUNK_CHARS, CHUNK_OVERLAP, SearchClient
 
 FOLLOW_UP_WORDS = 6
@@ -14,13 +15,26 @@ FOLLOW_UP_WORDS = 6
 @dataclass(frozen=True)
 class Passage:
     id: str
-    title: str
+    title: str  # the document's file name, which is also its ID
     content: str
     score: float = 0.0
+    section: str = ""  # nearest heading, when the document has headings
 
 
 class Retriever(Protocol):
-    def retrieve(self, query: str, top: int) -> list[Passage]: ...
+    def retrieve(self, query: str, top: int, documents: Sequence[str] = ()) -> list[Passage]:
+        """The best passages for `query`. A non-empty `documents` restricts the search to those documents."""
+        ...
+
+    def document_names(self) -> list[str]: ...
+
+
+_HEADING_LINE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.M)
+
+
+def first_heading(text: str) -> str:
+    m = _HEADING_LINE.search(text)
+    return m.group(1).strip() if m else ""
 
 
 def build_search_query(question: str, history: Sequence[dict], max_chars: int = 500) -> str:
@@ -40,12 +54,16 @@ def build_search_query(question: str, history: Sequence[dict], max_chars: int = 
 class AzureSearchRetriever:
     """Hybrid (keyword + vector) search, with semantic reranking when it is configured."""
 
-    def __init__(self, client: SearchClient):
+    def __init__(self, client: SearchClient, documents: DocumentStore | None = None):
         self.client = client
+        self.documents = documents
 
-    def retrieve(self, query: str, top: int) -> list[Passage]:
+    def document_names(self) -> list[str]:
+        return [d.name for d in self.documents.list()] if self.documents else []
+
+    def retrieve(self, query: str, top: int, documents: Sequence[str] = ()) -> list[Passage]:
         passages = []
-        for doc in self.client.search(query, top):
+        for doc in self.client.search(query, top, documents=documents):
             content = (doc.get("chunk") or "").strip()
             if not content:
                 continue
@@ -54,7 +72,10 @@ class AzureSearchRetriever:
                 title=doc.get("title") or "Untitled document",
                 content=content,
                 score=float(doc.get("@search.rerankerScore") or doc.get("@search.score") or 0.0),
+                section=first_heading(content),
             ))
+        if documents:  # the search filter already did this; never let another document through
+            passages = [p for p in passages if p.title in documents]
         return passages
 
 
@@ -88,28 +109,43 @@ class LocalRetriever:
     def __init__(self, folders: Iterable[Path]):
         self.folders = list(folders)
 
-    def _passages(self) -> list[Passage]:
-        passages = []
+    def _paths(self) -> dict[str, Path]:
+        """Searchable files by name. A later folder (uploads) replaces a same-named earlier file."""
+        paths = {}
         for folder in self.folders:
-            if not folder.is_dir():
+            if folder.is_dir():
+                for path in sorted(folder.iterdir()):
+                    if path.suffix.lower() in LOCAL_EXTENSIONS and path.is_file():
+                        paths[path.name] = path
+        return paths
+
+    def document_names(self) -> list[str]:
+        return sorted(self._paths())
+
+    def _passages(self, documents: Sequence[str] = ()) -> list[Passage]:
+        passages = []
+        for name, path in self._paths().items():
+            if documents and name not in documents:
                 continue
-            for path in sorted(folder.iterdir()):
-                if path.suffix.lower() not in LOCAL_EXTENSIONS or not path.is_file():
-                    continue
-                for i, chunk in enumerate(split_text(path.read_text(encoding="utf-8", errors="replace"))):
-                    passages.append(Passage(id=f"{path.name}-{i}", title=path.name, content=chunk))
+            text = path.read_text(encoding="utf-8", errors="replace")
+            step = CHUNK_CHARS - CHUNK_OVERLAP
+            for i, chunk in enumerate(split_text(text)):
+                # The heading in force where the chunk starts, or the first one inside it.
+                before = _HEADING_LINE.findall(text[:i * step])
+                section = before[-1].strip() if before else first_heading(chunk)
+                passages.append(Passage(id=f"{name}-{i}", title=name, content=chunk, section=section))
         return passages
 
-    def retrieve(self, query: str, top: int) -> list[Passage]:
+    def retrieve(self, query: str, top: int, documents: Sequence[str] = ()) -> list[Passage]:
         wanted = set(_terms(query))
         if not wanted:
             return []
         scored = []
-        for p in self._passages():
+        for p in self._passages(documents):
             words = _terms(p.content) + _terms(p.title)
             hits = sum(1 for w in words if w in wanted)
             coverage = len(wanted.intersection(words))
             if coverage:
                 scored.append((coverage * 10 + hits, p))
         scored.sort(key=lambda item: item[0], reverse=True)
-        return [Passage(p.id, p.title, p.content, float(score)) for score, p in scored[:top]]
+        return [Passage(p.id, p.title, p.content, float(score), p.section) for score, p in scored[:top]]

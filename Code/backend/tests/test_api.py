@@ -1,8 +1,12 @@
+import tempfile
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 from chatbot.config import Settings
 from chatbot.errors import UpstreamBusy, UpstreamError
+from chatbot.history import ConversationStore
 from chatbot.main import RateLimiter, create_app
 from chatbot.retrieval import Passage
 from chatbot.service import ChatService, Components
@@ -10,11 +14,16 @@ from chatbot.service import ChatService, Components
 
 class FakeRetriever:
     def __init__(self):
-        self.queries = []
+        self.queries, self.scopes = [], []
 
-    def retrieve(self, query, top):
+    def document_names(self):
+        return ["policy.pdf", "faq.pdf"]
+
+    def retrieve(self, query, top, documents=()):
         self.queries.append(query)
-        return [Passage("c1", "policy.pdf", "Refunds take 5 days."), Passage("c2", "faq.pdf", "Unrelated.")]
+        self.scopes.append(tuple(documents))
+        passages = [Passage("c1", "policy.pdf", "Refunds take 5 days."), Passage("c2", "faq.pdf", "Unrelated.")]
+        return [p for p in passages if not documents or p.title in documents]
 
 
 class FakeModel:
@@ -60,7 +69,8 @@ class FakeSearch:
 def make(settings=None, model=None, search=None):
     settings = settings or Settings(mode="local", upload_api_key="secret-key", rate_limit_per_minute=0)
     retriever, model = FakeRetriever(), model or FakeModel()
-    components = Components(chat=ChatService(settings, retriever, model), documents=MemoryStore(), search=search)
+    components = Components(chat=ChatService(settings, retriever, model), documents=MemoryStore(), search=search,
+                            conversations=ConversationStore(Path(tempfile.mkdtemp(prefix="chatbot-test-"))))
     client = TestClient(create_app(settings, components, start_search_setup=False))
     return client, components, retriever, model
 
@@ -79,7 +89,7 @@ def test_chat_returns_answer_with_cited_sources_only():
     assert r.status_code == 200
     body = r.json()
     assert body["answer"] == "Refunds take 5 days [1]."
-    assert body["citations"] == [{"id": 1, "title": "policy.pdf", "snippet": "Refunds take 5 days."}]
+    assert body["citations"] == [{"id": 1, "title": "policy.pdf", "snippet": "Refunds take 5 days.", "section": ""}]
     assert retriever.queries == ["What about refunds? the fridge"]
     assert [m["role"] for m in model.messages] == ["system", "user", "assistant", "user"]
     assert model.messages[-1]["content"].endswith("Question: the fridge")

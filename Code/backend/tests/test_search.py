@@ -168,3 +168,25 @@ def test_managed_identity_mode_sends_no_keys():
     assert "apiKey" not in index_definition(s)["vectorSearch"]["vectorizers"][0]["azureOpenAIParameters"]
     assert "apiKey" not in skillset_definition(s)["skills"][1]
     assert index_definition(s)["vectorSearch"]["vectorizers"][0]["azureOpenAIParameters"]["resourceUri"] == "https://embed.openai.azure.com"
+
+
+def test_scoped_query_filters_on_document_name_before_vector_search():
+    seen = {}
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"value": []})
+
+    client = make_client(handler)
+    client.search("q", 3, documents=["warranty-policy.md", "O'Brien notes.pdf"])
+    assert seen["body"]["filter"] == "title eq 'warranty-policy.md' or title eq 'O''Brien notes.pdf'"
+    assert seen["body"]["vectorFilterMode"] == "preFilter"
+    client.search("q", 3)
+    assert "filter" not in seen["body"] and "vectorFilterMode" not in seen["body"]
+
+
+def test_title_holds_the_file_name_and_is_filterable():
+    title = next(f for f in index_definition(settings())["fields"] if f["name"] == "title")
+    assert title["filterable"] is True
+    mappings = skillset_definition(settings())["indexProjections"]["selectors"][0]["mappings"]
+    assert {"name": "title", "source": "/document/metadata_storage_name"} in mappings

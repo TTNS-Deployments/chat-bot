@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from chatbot.auth import COOKIE_NAME, PasswordGate
@@ -6,10 +9,14 @@ from chatbot.main import create_app
 from chatbot.retrieval import Passage
 from chatbot.service import ChatService, Components
 from chatbot.documents import LocalDocumentStore
+from chatbot.history import ConversationStore
 
 
 class OneSource:
-    def retrieve(self, query, top):
+    def document_names(self):
+        return ["a.md"]
+
+    def retrieve(self, query, top, documents=()):
         return [Passage("c1", "a.md", "Text.")]
 
 
@@ -20,7 +27,8 @@ class Echo:
 
 def client(password="Demo-Pass-123", **settings):
     s = Settings(mode="local", auth_mode="password", demo_password=password, rate_limit_per_minute=0, **settings)
-    components = Components(chat=ChatService(s, OneSource(), Echo()), documents=LocalDocumentStore(__import__("pathlib").Path("/nonexistent")))
+    components = Components(chat=ChatService(s, OneSource(), Echo()), documents=LocalDocumentStore(Path("/nonexistent")),
+                            conversations=ConversationStore(Path(tempfile.mkdtemp(prefix="chatbot-test-"))))
     return TestClient(create_app(s, components, start_search_setup=False), base_url="https://testserver")
 
 
@@ -90,7 +98,8 @@ def test_lockout_expires():
 
 def test_no_gate_when_auth_mode_none():
     s = Settings(mode="local", rate_limit_per_minute=0)
-    c = TestClient(create_app(s, Components(chat=ChatService(s, OneSource(), Echo()), documents=LocalDocumentStore(__import__("pathlib").Path("/x"))), start_search_setup=False))
+    c = TestClient(create_app(s, Components(chat=ChatService(s, OneSource(), Echo()), documents=LocalDocumentStore(Path("/x")),
+                                    conversations=ConversationStore(Path(tempfile.mkdtemp(prefix="chatbot-test-")))), start_search_setup=False))
     assert c.post("/api/chat", json={"message": "hi"}).status_code == 200
     assert c.post("/api/login", json={"password": "x"}).status_code == 404
 

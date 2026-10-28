@@ -9,7 +9,7 @@ def passages(*contents):
 
 def test_sources_are_numbered_in_rank_order():
     text = format_sources(passages("alpha", "beta"))
-    assert text == "[1] doc1.pdf\nalpha\n\n[2] doc2.pdf\nbeta"
+    assert text == "[1] Document: doc1.pdf\nalpha\n\n[2] Document: doc2.pdf\nbeta"
 
 
 def test_no_sources_is_explicit():
@@ -49,7 +49,7 @@ def test_build_messages_structure():
     assert msgs[0] == {"role": "system", "content": SYSTEM_PROMPT}
     assert msgs[1:3] == history
     assert msgs[-1]["role"] == "user"
-    assert msgs[-1]["content"].startswith("Sources:\n[1] doc1.pdf\nsource text")
+    assert msgs[-1]["content"].startswith("Sources:\n[1] Document: doc1.pdf\nsource text")
     assert msgs[-1]["content"].endswith("Question: next?")
 
 

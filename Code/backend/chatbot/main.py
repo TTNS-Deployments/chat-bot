@@ -4,6 +4,10 @@
     GET    /api/config              title, subtitle and features for the page
     POST   /api/login, /api/logout  demo sign-in with a shared password (AUTH_MODE=password)
     POST   /api/chat                ask a question (with the conversation so far)
+    GET    /api/document-names      names of the searchable documents (for the "Search in" list)
+    GET    /api/history             the stored conversation                 (X-Conversation-Id)
+    GET    /api/history/export      download it: ?format=txt|json|docx     (X-Conversation-Id)
+    DELETE /api/history             forget the conversation                 (X-Conversation-Id)
     GET    /api/documents           list documents and indexing status      (X-Upload-Key)
     POST   /api/documents           upload a document                      (X-Upload-Key)
     DELETE /api/documents/{name}    remove a document                      (X-Upload-Key)
@@ -12,6 +16,7 @@
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 import os
 import threading
@@ -22,7 +27,7 @@ from typing import Literal
 
 from fastapi import FastAPI, File, Header, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -31,6 +36,8 @@ from .auth import COOKIE_NAME, PUBLIC_PATHS, PasswordGate
 from .config import FRONTEND_DIR, Settings, get_settings
 from .documents import safe_name
 from .errors import ChatbotError, NotConfigured, UpstreamError
+from .history import EXPORT_FORMATS, ConversationStore, export, export_command, now_iso
+from .privacy import MaskingFilter
 from .service import Components, SearchSetup, build_components
 
 log = logging.getLogger("chatbot")
@@ -48,6 +55,11 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000, description="The user's question.")
     history: list[ChatMessage] = Field(default_factory=list, max_length=40,
                                        description="Earlier messages of this conversation, oldest first.")
+    conversationId: str | None = Field(default=None, max_length=64,
+                                       description="From an earlier response; omit to start a stored conversation.")
+    documents: list[str] | None = Field(default=None, max_length=20,
+                                        description="Documents selected in the page: [] for all documents; omit to "
+                                                    "keep the conversation's current scope.")
 
     @field_validator("message")
     @classmethod
@@ -65,11 +77,20 @@ class CitationOut(BaseModel):
     id: int
     title: str
     snippet: str
+    section: str = ""
+
+
+class ChatAction(BaseModel):
+    type: Literal["download"]
+    format: str
 
 
 class ChatResponse(BaseModel):
     answer: str
     citations: list[CitationOut]
+    conversationId: str | None = None
+    scope: list[str] = Field(default_factory=list, description="Documents searched for this answer; empty means all.")
+    action: ChatAction | None = Field(default=None, description="Set when the message asked to download the chat history.")
 
 
 # --------------------------------------------------------------------------------------
@@ -135,6 +156,9 @@ def create_app(settings: Settings | None = None, components: Components | None =
     settings = settings or get_settings()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     _configure_telemetry()
+    for handler in logging.getLogger().handlers:  # personal information stays out of the logs
+        if not any(isinstance(f, MaskingFilter) for f in handler.filters):
+            handler.addFilter(MaskingFilter())
 
     if settings.auth_mode not in ("none", "password"):
         raise RuntimeError(f"AUTH_MODE must be 'none' or 'password', not {settings.auth_mode!r}")
@@ -143,6 +167,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
         raise RuntimeError(f"CHATBOT_MODE=azure but these settings are missing: {missing}")
 
     components = components or build_components(settings)
+    conversations = components.conversations or ConversationStore(settings.chat_history_dir, settings.chat_history_days)
     setup = SearchSetup(components.search)
     limiter = RateLimiter(settings.rate_limit_per_minute)
     gate = PasswordGate(settings.demo_password) if settings.auth_mode == "password" else None
@@ -252,9 +277,61 @@ def create_app(settings: Settings | None = None, components: Components | None =
     def chat(body: ChatRequest, request: Request):
         if not limiter.allow(caller(request)):
             return _error(429, "rate_limited", "Too many questions in a short time. Please wait a minute.")
-        result = components.chat.answer(body.message, [m.model_dump() for m in body.history])
-        return ChatResponse(answer=result.answer,
-                            citations=[CitationOut(id=c.id, title=c.title, snippet=c.snippet) for c in result.citations])
+        conversation_id = body.conversationId if conversations.valid_id(body.conversationId) else conversations.new_id()
+        previous_scope = conversations.scope(conversation_id)
+        asked = now_iso()
+
+        if (fmt := export_command(body.message)) is not None:
+            text = f"Your chat history is being downloaded as a .{fmt} file. Personal information stays hidden unless you asked to see it."
+            conversations.append(conversation_id, [
+                {"role": "user", "content": body.message, "time": asked},
+                {"role": "assistant", "content": text}], previous_scope)
+            return ChatResponse(answer=text, citations=[], conversationId=conversation_id, scope=previous_scope,
+                                action=ChatAction(type="download", format=fmt))
+
+        result = components.chat.answer(body.message, [m.model_dump() for m in body.history],
+                                        selected=body.documents, previous_scope=previous_scope)
+        citations = [CitationOut(id=c.id, title=c.title, snippet=c.snippet, section=c.section) for c in result.citations]
+        conversations.append(conversation_id, [
+            {"role": "user", "content": body.message, "time": asked},
+            {"role": "assistant", "content": result.answer, "citations": [c.model_dump() for c in citations],
+             "scope": list(result.scope), "revealed": sorted(result.revealed)}], result.scope)
+        return ChatResponse(answer=result.answer, citations=citations, conversationId=conversation_id,
+                            scope=list(result.scope))
+
+    @app.get("/api/document-names", tags=["chat"])
+    def document_names():
+        return {"documents": components.chat.catalog.names()}
+
+    # ---- chat history ----
+    def stored_conversation(conversation_id: str | None) -> dict | JSONResponse:
+        conversation = conversations.load(conversation_id)
+        if conversation is None:
+            return _error(404, "no_history", "There is no saved chat history for this conversation yet.")
+        return conversation
+
+    @app.get("/api/history", tags=["chat history"])
+    def history(x_conversation_id: str | None = Header(default=None)):
+        conversation = stored_conversation(x_conversation_id)
+        if isinstance(conversation, JSONResponse):
+            return conversation
+        return JSONResponse(json.loads(export(conversation, "json")[0]))
+
+    @app.get("/api/history/export", tags=["chat history"])
+    def export_history(format: str = "txt", x_conversation_id: str | None = Header(default=None)):
+        fmt = format.lower().lstrip(".")
+        if fmt not in EXPORT_FORMATS:
+            return _error(422, "invalid_format", f"Choose one of: {', '.join(EXPORT_FORMATS)}.")
+        conversation = stored_conversation(x_conversation_id)
+        if isinstance(conversation, JSONResponse):
+            return conversation
+        content, media_type, filename = export(conversation, fmt)
+        return Response(content, media_type=media_type,
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+    @app.delete("/api/history", tags=["chat history"])
+    def delete_history(x_conversation_id: str | None = Header(default=None)):
+        return {"deleted": conversations.delete(x_conversation_id)}
 
     # ---- documents ----
     def check_upload_key(provided: str | None) -> JSONResponse | None:
@@ -293,6 +370,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
         if not data:
             return _error(422, "empty_file", "The file is empty.")
         stored = components.documents.save(name, data, file.content_type)
+        components.chat.catalog.invalidate()
         indexing = "local"
         if components.search:
             indexing = "started" if components.search.run_indexer() else "queued"
@@ -309,6 +387,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
             return _error(422, "invalid_name", str(exc))
         if not components.documents.delete(name):
             return _error(404, "not_found", f"No document named {name}.")
+        components.chat.catalog.invalidate()
         if components.search:
             components.search.run_indexer()  # removes the deleted file's chunks (soft-delete detection)
         return {"deleted": name}

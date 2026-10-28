@@ -88,6 +88,7 @@ class LocalChatModel:
             return ("I could not find this in the available documents. Try rephrasing the question, "
                     "or add a document that covers it. (Local mode: answers are extracts, not generated.)")
         sources_part, _, question = prompt.rpartition("\n\nQuestion: ")
+        sources_part = sources_part.split("\n\nScope: ")[0]  # drop the scope and privacy notes
         wanted = {w for w in re.findall(r"[a-z0-9]+", question.lower()) if len(w) > 3}
         lines = []
         for number, body in re.findall(r"\[(\d+)\] [^\n]*\n(.*?)(?=\n\n\[\d+\] |\Z)", sources_part, flags=re.S)[:2]:

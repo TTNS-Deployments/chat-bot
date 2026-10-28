@@ -47,9 +47,12 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `AZURE_SEARCH_API_VERSION` | `2024-07-01` | AI Search REST API version. |
 | `AZURE_CLIENT_ID` | | Client ID of a user-assigned managed identity, if you switch the web app to one. |
 | `LOCAL_DATA_DIR` | `.localdata` | Local mode: where uploaded files are stored. |
+| `ALLOW_SENSITIVE_REVEAL` | `true` | `false` keeps personal and customer information hidden even when a user asks for it. The app has no user roles; this is the switch for deployments where nobody should see such values. |
+| `CHAT_HISTORY_DIR` | `/home/data/chatbot/conversations` on App Service, else `.localdata/conversations` | Where conversations are stored for the "Download chat" export. Must be shared by all workers and instances (App Service's `/home` is). |
+| `CHAT_HISTORY_DAYS` | `7` | Stored conversations untouched for this many days are deleted. |
 
 ## Changing the answer behaviour
 
-The system prompt is in `Code/backend/chatbot/prompts.py` (`SYSTEM_PROMPT`). It asks for answers only from the numbered sources, with `[n]` citations, and an explicit "not found" when the sources do not cover the question. Change the wording there (for example tone, language or answer length) and redeploy the code (`deploy.sh --skip-infra`). The unit tests in `Code/backend/tests/test_prompts.py` check the citation contract.
+The system prompt is in `Code/backend/chatbot/prompts.py` (`SYSTEM_PROMPT`). It asks for answers only from the numbered sources, with `[n]` citations, and an explicit "not found" when the sources do not cover the question. It also states the scope and privacy rules, but those are enforced in code (`scope.py`, `privacy.py`), so wording changes cannot weaken them. Change the wording there (for example tone, language or answer length) and redeploy the code (`deploy.sh --skip-infra`). The unit tests in `Code/backend/tests/test_prompts.py` check the citation contract.
 
 The chunk size (2,000 characters with 300 overlap) and the indexer schedule (30 minutes) are in `Code/backend/chatbot/search.py`. The app applies changes to the skillset and indexer on its next start. Run a reset and run of the indexer to re-chunk existing documents.

@@ -7,7 +7,7 @@ idempotently. The definitions are plain JSON so they can be read next to the RES
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 import httpx
 
@@ -186,7 +186,8 @@ class SearchClient:
                             status_code=502)
 
     # ---- query ----
-    def search(self, text: str, top: int) -> list[dict]:
+    def search(self, text: str, top: int, documents: Sequence[str] = ()) -> list[dict]:
+        """Hybrid search. A non-empty `documents` (file names) restricts it to those documents."""
         s = self.settings
         body: dict[str, Any] = {
             "search": text,
@@ -200,6 +201,10 @@ class SearchClient:
                 "k": 50 if s.search_semantic_config else top,
             }],
         }
+        if documents:
+            body["filter"] = document_filter(documents)
+            # Filter before the nearest-neighbour search, so the top results all come from these documents.
+            body["vectorFilterMode"] = "preFilter"
         if s.search_semantic_config:
             body["queryType"] = "semantic"
             body["semanticConfiguration"] = s.search_semantic_config
@@ -224,6 +229,11 @@ class SearchClient:
             "itemsFailed": last.get("itemsFailed", 0),
             "errors": [e.get("errorMessage", "") for e in (last.get("errors") or [])[:5]],
         }
+
+
+def document_filter(documents: Sequence[str]) -> str:
+    """OData filter on the `title` field, which holds each chunk's file name."""
+    return " or ".join(f"title eq '{name.replace(chr(39), chr(39) * 2)}'" for name in documents)
 
 
 def _json(response: httpx.Response) -> dict:

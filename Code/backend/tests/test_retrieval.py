@@ -35,7 +35,7 @@ class FakeSearch:
     def __init__(self, docs):
         self.docs, self.calls = docs, []
 
-    def search(self, text, top):
+    def search(self, text, top, documents=()):
         self.calls.append((text, top))
         return self.docs
 
@@ -58,3 +58,27 @@ def test_local_retriever_finds_sample_document(tmp_path):
     hits = LocalRetriever([SAMPLE_DOCS_DIR, tmp_path, tmp_path / "missing"]).retrieve("refund cash on delivery", 3)
     assert hits and hits[0].title == "returns-and-refunds.md"
     assert LocalRetriever([SAMPLE_DOCS_DIR]).retrieve("the and of", 3) == []
+
+
+def test_azure_retriever_passes_the_scope_and_drops_other_documents():
+    fake = FakeSearch([{"chunk_id": "c1", "title": "a.pdf", "chunk": "## Fees\ntext"},
+                       {"chunk_id": "c2", "title": "b.pdf", "chunk": "other"}])
+    calls = []
+    fake.search = lambda text, top, documents=(): calls.append(tuple(documents)) or fake.docs
+    result = AzureSearchRetriever(fake).retrieve("q", 5, documents=["a.pdf"])
+    assert calls == [("a.pdf",)]
+    assert [(p.title, p.section) for p in result] == [("a.pdf", "Fees")]
+
+
+def test_local_retriever_scope_returns_only_that_document():
+    hits = LocalRetriever([SAMPLE_DOCS_DIR]).retrieve("warranty refund customer support", 10,
+                                                       documents=["returns-and-refunds.md"])
+    assert hits and {p.title for p in hits} == {"returns-and-refunds.md"}
+    assert all(p.section for p in hits)
+
+
+def test_local_retriever_lists_document_names(tmp_path):
+    (tmp_path / "notes.txt").write_text("x")
+    (tmp_path / "ignored.pdf").write_bytes(b"%PDF")
+    names = LocalRetriever([SAMPLE_DOCS_DIR, tmp_path]).document_names()
+    assert "notes.txt" in names and "warranty-policy.md" in names and "ignored.pdf" not in names

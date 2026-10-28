@@ -89,6 +89,9 @@ class Settings:
     max_source_chars: int = 12000
     rate_limit_per_minute: int = 20
     trust_forwarded_for: bool = False  # True behind App Service (WEBSITE_SITE_NAME is set) or a proxy you trust
+    allow_sensitive_reveal: bool = True  # False: personal information stays hidden even when asked for
+    chat_history_dir: Path = REPO_ROOT / ".localdata" / "conversations"
+    chat_history_days: int = 7
     azure_client_id: str = ""
     local_data_dir: Path = REPO_ROOT / ".localdata"
 
@@ -124,6 +127,7 @@ class Settings:
 
 def settings_from_env(env: dict[str, str] | None = None) -> Settings:
     e = os.environ if env is None else env
+    local_data_dir = Path(e.get("LOCAL_DATA_DIR") or Settings.local_data_dir)
     mode = (e.get("CHATBOT_MODE") or ("azure" if e.get("AZURE_OPENAI_ENDPOINT") else "local")).lower()
     return Settings(
         mode=mode if mode in ("local", "azure") else "local",
@@ -158,7 +162,12 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
         rate_limit_per_minute=_int(e.get("RATE_LIMIT_PER_MINUTE"), Settings.rate_limit_per_minute),
         trust_forwarded_for=_bool(e.get("TRUST_FORWARDED_FOR"), bool(e.get("WEBSITE_SITE_NAME"))),
         azure_client_id=e.get("AZURE_CLIENT_ID", ""),
-        local_data_dir=Path(e.get("LOCAL_DATA_DIR") or Settings.local_data_dir),
+        local_data_dir=local_data_dir,
+        allow_sensitive_reveal=_bool(e.get("ALLOW_SENSITIVE_REVEAL"), True),
+        # App Service shares /home between workers and instances; wwwroot can be read-only (run from package).
+        chat_history_dir=Path(e.get("CHAT_HISTORY_DIR") or ("/home/data/chatbot/conversations" if e.get("WEBSITE_SITE_NAME")
+                                                           else local_data_dir / "conversations")),
+        chat_history_days=max(1, _int(e.get("CHAT_HISTORY_DAYS"), Settings.chat_history_days)),
     )
 
 
