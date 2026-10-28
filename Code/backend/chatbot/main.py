@@ -203,6 +203,9 @@ def create_app(settings: Settings | None = None, components: Components | None =
         if path == "/" or path.endswith(".html") or path.startswith("/api/"):
             # Pages and answers must not be served from the browser cache (for example after sign-out).
             response.headers.setdefault("Cache-Control", "no-store")
+        else:
+            # Scripts and styles are revalidated (ETag) so a new release never runs old app.js against new HTML.
+            response.headers.setdefault("Cache-Control", "no-cache")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         if not request.url.path.startswith("/api/docs"):

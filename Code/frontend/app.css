@@ -69,6 +69,13 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .subtitle { margin: 0; color: var(--muted); font-size: .875rem; }
 .actions { display: flex; gap: 8px; flex-shrink: 0; }
+@media (min-width: 900px) {
+  /* One header row on wide screens: the title shortens instead of pushing the buttons down. */
+  .topbar { flex-wrap: nowrap; }
+  .brand > div { min-width: 0; }
+  .brand h1, .subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .actions button, .menu summary { padding-left: 12px; padding-right: 12px; }
+}
 
 /* ---- buttons ---- */
 button { cursor: pointer; border-radius: 10px; border: 1px solid transparent; padding: 8px 14px; background: none; }
@@ -138,18 +145,19 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 /* ---- scope and composer ---- */
 .scope-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
-  margin: 8px max(16px, calc((100% - 860px) / 2)) 0; font-size: .9rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; flex: 1 1 100%; min-width: 0;
+  padding: 0 4px 8px; border-bottom: 1px solid var(--rule); color: var(--muted); font-size: .85rem;
 }
 .scope-bar label { font-weight: 600; }
 .scope-bar select {
-  max-width: 100%; min-width: 0; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--surface); color: var(--ink); font: inherit;
+  max-width: 100%; min-width: 0; padding: 4px 12px; border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;
 }
+.scope-bar select:hover { border-color: var(--brand); }
 .scope-bar select.scoped { border-color: var(--brand); outline: 1px solid var(--brand); }
 .scope-bar .hint { margin: 0; }
 .composer {
-  display: flex; align-items: flex-end; gap: 8px;
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;
   margin: 8px max(16px, calc((100% - 860px) / 2)) 0; padding: 8px;
   background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
 }
