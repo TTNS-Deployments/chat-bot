@@ -267,7 +267,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
                                     "Restart the web app in a few minutes.")
             return None  # local mode without a key
         if not provided or not hmac.compare_digest(provided.encode(), expected.encode()):
-            return _error(401, "invalid_upload_key", "The upload key is missing or wrong.")
+            return _error(401, "invalid_upload_key", "The upload key is missing or wrong. Use the key printed at the end of the deployment.")
         return None
 
     @app.get("/api/documents", tags=["documents"])

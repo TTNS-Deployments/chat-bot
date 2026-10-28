@@ -63,7 +63,8 @@
     </form>
     <p class="muted">Add PDF, Word, PowerPoint, Excel, HTML, Markdown, CSV, JSON or text files. New files are searchable a few minutes after upload.</p>
     <label for="upload-key">Upload key</label>
-    <input id="upload-key" type="password" autocomplete="off" placeholder="From Key Vault secret upload-api-key">
+    <input id="upload-key" type="password" autocomplete="off" placeholder="Paste the upload key" aria-describedby="upload-key-help">
+    <p id="upload-key-help" class="hint">The key printed at the end of the deployment. Ask your administrator if you don't have it.</p>
     <form id="upload-form" class="upload-row">
       <label for="file" class="sr-only">File</label>
       <input id="file" type="file" accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.html,.htm,.csv,.json" required>

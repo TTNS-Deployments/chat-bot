@@ -146,6 +146,7 @@ dialog input[type="password"] { width: 100%; padding: 8px 10px; border: 1px soli
 .upload-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
 .upload-row input[type="file"] { flex: 1; min-width: 0; }
 .muted { color: var(--muted); font-size: .9rem; }
+.hint { margin: 4px 0 0; color: var(--muted); font-size: .8rem; }
 .status { min-height: 1.4em; font-size: .9rem; }
 .status.bad { color: var(--error-ink); }
 .doc-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; }
