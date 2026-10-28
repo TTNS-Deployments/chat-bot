@@ -112,7 +112,7 @@ class CapturingModel:
         self.reply = reply
         self.calls: list[list[dict]] = []
 
-    def complete(self, messages):
+    def complete(self, messages, max_tokens=None):
         self.calls.append([dict(m) for m in messages])
         return self.reply
 

@@ -11,9 +11,21 @@ from .prompts import NO_SOURCES_NOTE
 
 log = logging.getLogger(__name__)
 
+# A capped answer (a short summary) needs little reasoning. Reasoning models count reasoning tokens
+# towards max_completion_tokens, so they get this much room on top of the cap.
+SHORT_REASONING_EFFORT = "minimal"
+REASONING_ALLOWANCE = 400
+_SENTENCE_END = re.compile(r"[.!?)\]](?=\s|$)|\n")
+
 
 class ChatModel(Protocol):
-    def complete(self, messages: Sequence[dict]) -> str: ...
+    def complete(self, messages: Sequence[dict], max_tokens: int | None = None) -> str: ...
+
+
+def drop_unfinished(text: str) -> str:
+    """Cut an answer that hit the token limit back to its last complete sentence or line."""
+    ends = [m.end() for m in _SENTENCE_END.finditer(text)]
+    return text[:ends[-1]].rstrip() if ends else text
 
 
 class AzureChatModel:
@@ -21,6 +33,7 @@ class AzureChatModel:
         self.settings = settings
         self._reasoning = settings.chat_reasoning_effort not in ("", "none")
         self._omit_temperature = self._reasoning or settings.chat_temperature is None
+        self._short_effort = SHORT_REASONING_EFFORT if self._reasoning else ""
         if client is None:
             from azure.identity import get_bearer_token_provider
             from openai import AzureOpenAI
@@ -36,27 +49,38 @@ class AzureChatModel:
             )
         self.client = client
 
-    def complete(self, messages: Sequence[dict]) -> str:
+    def complete(self, messages: Sequence[dict], max_tokens: int | None = None) -> str:
+        """The model's answer. `max_tokens` caps the answer (short summaries); the default is CHAT_MAX_TOKENS."""
         import openai
         from azure.core.exceptions import ClientAuthenticationError
 
         kwargs = {"model": self.settings.chat_deployment, "messages": list(messages),
-                  "max_completion_tokens": self.settings.chat_max_tokens}
+                  "max_completion_tokens": max_tokens or self.settings.chat_max_tokens}
         if self._reasoning:
             # Reasoning models (gpt-5 family) take an effort level and reject temperature.
             kwargs["reasoning_effort"] = self.settings.chat_reasoning_effort
+            if max_tokens:
+                kwargs["max_completion_tokens"] = max_tokens + REASONING_ALLOWANCE
+                if self._short_effort:
+                    kwargs["reasoning_effort"] = self._short_effort
         if not self._omit_temperature:
             kwargs["temperature"] = self.settings.chat_temperature
         try:
             try:
                 response = self.client.chat.completions.create(**kwargs)
             except openai.BadRequestError as exc:
-                # Reasoning models only accept the default temperature; retry once without it.
-                if "temperature" not in str(exc) or "temperature" not in kwargs:
+                # Reasoning models only accept the default temperature, and some do not know the
+                # "minimal" effort; retry once without what was rejected.
+                if "temperature" in str(exc) and "temperature" in kwargs:
+                    log.info("Chat model rejected temperature; continuing without it")
+                    self._omit_temperature = True
+                    kwargs.pop("temperature")
+                elif "reasoning_effort" in str(exc) and self._short_effort and kwargs.get("reasoning_effort") == self._short_effort:
+                    log.info("Chat model rejected reasoning effort %s; using the configured effort", self._short_effort)
+                    self._short_effort = ""
+                    kwargs["reasoning_effort"] = self.settings.chat_reasoning_effort
+                else:
                     raise
-                log.info("Chat model rejected temperature; continuing without it")
-                self._omit_temperature = True
-                kwargs.pop("temperature")
                 response = self.client.chat.completions.create(**kwargs)
         except openai.RateLimitError as exc:
             raise UpstreamBusy("The language model is busy right now. Please try again in a moment.") from exc
@@ -76,13 +100,14 @@ class AzureChatModel:
             raise UpstreamError(f"The language model returned an unexpected response: {str(response)[:200]}") from exc
         if finish_reason == "content_filter":
             raise ContentFiltered("The answer was blocked by the content filter. Please rephrase the question.")
-        return (content or "").strip()
+        text = (content or "").strip()
+        return drop_unfinished(text) if finish_reason == "length" else text
 
 
 class LocalChatModel:
     """Answers with the most relevant sentences of the top sources. For local development only."""
 
-    def complete(self, messages: Sequence[dict]) -> str:
+    def complete(self, messages: Sequence[dict], max_tokens: int | None = None) -> str:
         prompt = messages[-1]["content"]
         if NO_SOURCES_NOTE in prompt:
             return ("I could not find this in the available documents. Try rephrasing the question, "

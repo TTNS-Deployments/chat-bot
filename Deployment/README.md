@@ -48,14 +48,14 @@ Values are the three presets. "Options" are what the template accepts; anything 
 | `logAnalyticsRetentionDays` | 30 | 30 | 90 | 30-730. Longer retention costs more. |
 | `logAnalyticsDailyQuotaGb` | 1 | 5 | -1 | Daily ingestion cap in GB; `-1` = no cap. When the cap is hit, logs stop until the next day. |
 | **Application** | | | | |
-| `allowDocumentUpload` | true | true | true | Show the upload control on the chat page. Uploads always need the upload key. |
+| `allowDocumentUpload` | true | true | true | Show the upload control on the chat page. Adding documents needs no key. |
 
 Parameters that are **not** in the SKU files, because the scripts or the portal set them:
 
 | Parameter | Set by | Purpose |
 |---|---|---|
 | `deployerPrincipalId`, `deployerPrincipalType` | deploy scripts | Gives the person or pipeline that deploys data access, for document ingestion. |
-| `uploadApiKey` | deploy scripts (`--param`; generated on the first deployment) or the portal form | The upload key, stored in Key Vault as `upload-api-key`. Written only when a value is passed, so redeploys keep it. |
+| `uploadApiKey` | deploy scripts (`--param`; generated on the first deployment) or the portal form | The administrator key for deleting documents through the API (adding documents needs no key), stored in Key Vault as `upload-api-key`. Written only when a value is passed, so redeploys keep it. |
 | `authMode`, `demoPassword` | SKU file / `--param` / portal form | `password` puts the chat page behind one shared password, stored in Key Vault as `demo-password` (kept on redeploy when not passed). |
 | `appPackageUrl` | `deploy.sh --code-via-arm` | Run-from-package URL; passed into infrastructure redeploys so they keep the running code. |
 | `deployAppCode`, `repositoryUrl`, `repositoryBranch` | portal form (default on) | Lets the button deploy the application code from this public repository. The scripts deploy the code themselves and leave it off. |

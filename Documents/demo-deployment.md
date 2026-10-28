@@ -15,7 +15,7 @@ All settings are in [`Deployment/ARM/parameters/demo.parameters.json`](../Deploy
 | Azure OpenAI, embeddings | `chatbot-embed-<suffix>` (East US) | `text-embedding-3-small`, Standard, 10K TPM | None (pay per token) |
 | Azure AI Search | `chatbot-search-<suffix>` | **Free** tier (50 MB, 3 indexes, no semantic ranker) | None |
 | Storage | `chatbotst<suffix>` | Standard LRS; shared-key access on (needed for Cloud Shell and the Free search tier) | A few rupees a month |
-| Key Vault | `chatbot-kv-<suffix>` | Standard; holds the demo password, the upload key and the search keys | A few rupees a month |
+| Key Vault | `chatbot-kv-<suffix>` | Standard; holds the demo password, the administrator key and the search keys | A few rupees a month |
 | Log Analytics + Application Insights | `chatbot-logs`, `chatbot-insights` | 30 days, 1 GB/day cap; diagnostic log export turned off | Close to nothing |
 
 The suffix is six characters, fixed for the resource group, so names stay the same on every redeploy. The call-center `ccai-*` resources are never touched.
@@ -48,9 +48,9 @@ What it does:
 2. Deploys the template into `Vaibhav.Chaudhary` (the resource group is reused, never recreated).
 3. Packages the app **with its dependencies**, uploads it to the storage account with the account key, and points the web app at it (run-from-package, read-only link valid for one year).
 4. Uploads the sample documents, restarts the web app, and waits until `/healthz` reports `"searchSetup": "ready"`.
-5. Prints the chat page address and, on the first deployment, the **upload key**. Save the upload key: Cloud Shell cannot read it back from Key Vault (the portal can: *Key Vault → Secrets*, with the *Key Vault Secrets User* role).
+5. Prints the chat page address and, on the first deployment, the **administrator key** (only for deleting documents through the API). Save it: Cloud Shell cannot read it back from Key Vault (the portal can: *Key Vault → Secrets*, with the *Key Vault Secrets User* role).
 
-**Later deployments** (after a `git pull`): run the same command **without** `--param demoPassword=...`. The stored password and upload key are kept, and the running code is kept during the infrastructure step. To change the password or the key, pass `--param demoPassword='...'` or `--param uploadApiKey='...'` again.
+**Later deployments** (after a `git pull`): run the same command **without** `--param demoPassword=...`. The stored password and administrator key are kept, and the running code is kept during the infrastructure step. To change the password or the key, pass `--param demoPassword='...'` or `--param uploadApiKey='...'` again.
 
 Only code changed? `Deployment/scripts/deploy.sh -e demo --skip-infra`.
 
@@ -58,7 +58,7 @@ Only code changed? `Deployment/scripts/deploy.sh -e demo --skip-infra`.
 
 1. Open the chat page address. The sign-in page appears; enter the demo password.
 2. Ask *What does the warranty cover?*. The answer should cite `warranty-policy.md`. The first answer after a restart can take 30 seconds or more on the shared B1 plan.
-3. **Documents** → paste the upload key → upload a small file. It is searchable within a few minutes. The Free tier runs an indexer at most every 3 minutes, limits each run to 3–10 minutes, and may process at most 20 documents per indexer per day through the AI pipeline: enough for a couple of documents, not for bulk loading.
+3. **Documents** → choose a small file → **Upload** (no key needed). It is searchable within a few minutes. The Free tier runs an indexer at most every 3 minutes, limits each run to 3–10 minutes, and may process at most 20 documents per indexer per day through the AI pipeline: enough for a couple of documents, not for bulk loading.
 4. If something fails: *Web app → Log stream* in the portal, or `https://<web app>/healthz` (`searchSetupDetail` gives the reason).
 
 ## Adding the demo documents by script

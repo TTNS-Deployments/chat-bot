@@ -9,7 +9,8 @@ How a scope is chosen, first match wins:
 1. "search all documents" (and similar) clears the scope.
 2. The message names documents: a full file name ("warranty-policy.md"), or a reference after a
    scoping phrase ("only in the warranty policy", "specifically from the returns document", "in
-   the X file"). A reference that matches no document, or several, makes the bot ask.
+   the X file"). A reference that matches no document, or several, makes the bot ask. Weaker cues
+   ("according to the X", "summarize the X") count only when they match exactly one document.
 3. "this document" / "just this file" means the document selected in the page, or else the current scope.
 4. The document selected in the page.
 5. The scope of the previous question (scopes persist until changed).
@@ -41,8 +42,12 @@ _STRONG = [
     re.compile(r"\b(?:in|from|within|inside|using|use|search|check)\s+" + _REF + r"\s+only\b", re.I),
     re.compile(r"\b" + _DOC_WORDS + r"\s+(?:called|named|titled)\s+[\"“']?" + _REF + r"[\"”']?" + _END, re.I),
 ]
-# Weak cue: "according to the warranty policy". Used only when the reference matches a document.
-_WEAK = re.compile(r"\b(?:according to|as per|per)\s+" + _REF + _END, re.I)
+# Weak cues: "according to the warranty policy", "summarize the returns policy". Used only when the
+# reference matches a document.
+_WEAK = [
+    re.compile(r"\b(?:according to|as per|per)\s+" + _REF + _END, re.I),
+    re.compile(r"\b(?:summar(?:ise|ize)|recap|tl;?\s?dr(?:\s+of)?|(?:summary|gist|overview|recap)\s+of)\s+" + _REF + _END, re.I),
+]
 _SPLIT = re.compile(r"\s*(?:,|&|\band\b|\bor\b|\bplus\b)\s*", re.I)
 _FILLER = frozenset("a an the this that these those my our your its of in on for to from with only just and or one".split())
 _STOP = _FILLER | frozenset("document documents doc docs file files statement statements pdf pdfs report reports "
@@ -143,7 +148,7 @@ def resolve_scope(message: str, documents: Sequence[str], selected: Sequence[str
                 elif _wanted(part):
                     unresolved.append(part.strip())
     if not chosen and not ambiguous and not unresolved:
-        for m in _WEAK.finditer(message):
+        for m in (m for pattern in _WEAK for m in pattern.finditer(message)):
             matches = match_reference(m.group("ref"), available)
             if len(matches) == 1:
                 chosen.append(matches[0])

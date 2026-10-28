@@ -172,8 +172,9 @@ if ($Seed) {
 Write-Information ''
 Write-Information "Done. Chat page: $WebUrl"
 if ($script:NewUploadKey) {
-    Write-Information "Upload key:      $($script:NewUploadKey)"
+    Write-Information "Admin key:       $($script:NewUploadKey)"
+    Write-Information "                 Only for deleting documents through the API; adding documents needs no key."
     Write-Information "                 Save it now. It is stored in Key Vault $Vault as upload-api-key."
 } else {
-    Write-Information "Upload key:      Key Vault $Vault, secret upload-api-key (unchanged)."
+    Write-Information "Admin key:       Key Vault $Vault, secret upload-api-key (unchanged; only for deleting documents)."
 }

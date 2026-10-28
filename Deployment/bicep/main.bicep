@@ -215,10 +215,10 @@ param repositoryUrl string = 'https://github.com/TTNS-Deployments/chat-bot'
 @description('Branch to deploy from repositoryUrl.')
 param repositoryBranch string = 'main'
 
-@description('Let users add documents from the chat page. Uploads always require the upload key stored in Key Vault.')
+@description('Let users add documents from the chat page (no key needed; behind sign-in when it is on).')
 param allowDocumentUpload bool = true
 
-@description('Key that protects document upload, stored in Key Vault as upload-api-key. Leave empty on a redeploy to keep the stored key.')
+@description('Administrator key for deleting documents through the API, stored in Key Vault as upload-api-key. Adding documents needs no key. Leave empty on a redeploy to keep the stored key.')
 @secure()
 param uploadApiKey string = ''
 

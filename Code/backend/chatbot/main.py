@@ -8,9 +8,9 @@
     GET    /api/history             the stored conversation                 (X-Conversation-Id)
     GET    /api/history/export      download it: ?format=txt|json|docx     (X-Conversation-Id)
     DELETE /api/history             forget the conversation                 (X-Conversation-Id)
-    GET    /api/documents           list documents and indexing status      (X-Upload-Key)
-    POST   /api/documents           upload a document                      (X-Upload-Key)
-    DELETE /api/documents/{name}    remove a document                      (X-Upload-Key)
+    GET    /api/documents           list documents and indexing status
+    POST   /api/documents           upload a document (no key needed; behind sign-in when it is on)
+    DELETE /api/documents/{name}    remove a document                      (X-Upload-Key, API only)
     GET    /                        the chat page (Code/frontend)
 """
 from __future__ import annotations
@@ -334,31 +334,42 @@ def create_app(settings: Settings | None = None, components: Components | None =
         return {"deleted": conversations.delete(x_conversation_id)}
 
     # ---- documents ----
-    def check_upload_key(provided: str | None) -> JSONResponse | None:
+    # Adding documents needs no key: anyone who can use the chat can add documents (after sign-in when
+    # AUTH_MODE=password). The web app writes to Storage with its managed identity, and the search
+    # service creates embeddings with its own, so no key ever reaches the browser.
+    def check_upload_enabled() -> JSONResponse | None:
         if not settings.allow_document_upload:
-            return _error(403, "upload_disabled", "Document upload is turned off for this deployment.")
+            return _error(403, "upload_disabled", "Adding documents is turned off for this deployment.")
+        return None
+
+    def check_delete_key(provided: str | None) -> JSONResponse | None:
+        """Deleting stays an administrator task (the page has no delete button): it needs UPLOAD_API_KEY."""
+        if (denied := check_upload_enabled()) is not None:
+            return denied
         expected = settings.upload_api_key
         if not expected or expected.startswith("@Microsoft.KeyVault("):
             if settings.is_azure:
-                raise NotConfigured("The upload key is not available yet (Key Vault reference not resolved). "
+                raise NotConfigured("The administrator key is not available yet (Key Vault reference not resolved). "
                                     "Restart the web app in a few minutes.")
             return None  # local mode without a key
         if not provided or not hmac.compare_digest(provided.encode(), expected.encode()):
-            return _error(401, "invalid_upload_key", "The upload key is missing or wrong. Use the key printed at the end of the deployment.")
+            return _error(401, "invalid_key", "Deleting documents needs the administrator key (X-Upload-Key header).")
         return None
 
     @app.get("/api/documents", tags=["documents"])
-    def list_documents(x_upload_key: str | None = Header(default=None)):
-        if (denied := check_upload_key(x_upload_key)) is not None:
+    def list_documents():
+        if (denied := check_upload_enabled()) is not None:
             return denied
         docs = [{"name": d.name, "size": d.size, "lastModified": d.last_modified} for d in components.documents.list()]
         indexer = components.search.indexer_status() if components.search else {"status": "local"}
         return {"documents": docs, "indexer": indexer}
 
     @app.post("/api/documents", status_code=201, tags=["documents"])
-    async def upload_document(file: UploadFile = File(...), x_upload_key: str | None = Header(default=None)):
-        if (denied := check_upload_key(x_upload_key)) is not None:
+    async def upload_document(request: Request, file: UploadFile = File(...)):
+        if (denied := check_upload_enabled()) is not None:
             return denied
+        if not limiter.allow(caller(request)):
+            return _error(429, "rate_limited", "Too many requests in a short time. Please wait a minute.")
         try:
             name = safe_name(file.filename or "")
         except ValueError as exc:
@@ -369,17 +380,25 @@ def create_app(settings: Settings | None = None, components: Components | None =
             return _error(413, "file_too_large", f"The file is larger than {settings.max_upload_mb} MB.")
         if not data:
             return _error(422, "empty_file", "The file is empty.")
-        stored = components.documents.save(name, data, file.content_type)
+        try:
+            stored = components.documents.save(name, data, file.content_type)
+        except Exception as exc:  # storage unreachable, missing role assignment and the like
+            log.error("Could not store document %s: %s", name, exc)
+            return _error(502, "upload_failed", "The document could not be stored right now. Please try again in a few minutes.")
         components.chat.catalog.invalidate()
         indexing = "local"
         if components.search:
-            indexing = "started" if components.search.run_indexer() else "queued"
+            try:
+                indexing = "started" if components.search.run_indexer() else "queued"
+            except ChatbotError as exc:  # the scheduled indexer run picks the file up anyway
+                log.warning("Stored %s but could not start the indexer: %s", name, exc.message)
+                indexing = "scheduled"
         log.info("Stored document %s (%d bytes); indexing %s", stored.name, stored.size, indexing)
         return {"name": stored.name, "size": stored.size, "indexing": indexing}
 
     @app.delete("/api/documents/{name}", tags=["documents"])
     def delete_document(name: str, x_upload_key: str | None = Header(default=None)):
-        if (denied := check_upload_key(x_upload_key)) is not None:
+        if (denied := check_delete_key(x_upload_key)) is not None:
             return denied
         try:
             name = safe_name(name)

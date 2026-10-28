@@ -21,7 +21,7 @@ The diagram source is [`imgs/architecture.svg`](../imgs/architecture.svg) (hand-
 | Language models | Azure OpenAI account with a `chat` and an `embedding` deployment | The chat model writes grounded answers. The embedding model vectorises document chunks (indexer) and questions (index vectorizer). | `openAiLocation`, `chat*`, `embedding*` |
 | Retrieval | Azure AI Search, index `documents-index` | Hybrid search (keyword + vector) with optional semantic reranking. The indexer reads Blob Storage, splits documents into 2,000-character chunks with overlap, embeds them, and projects one search document per chunk. | `searchSku`, `searchReplicaCount`, `searchPartitionCount`, `semanticSearch` |
 | Document store | Storage account (StorageV2), container `documents` | Source files. Blob soft delete lets the indexer remove deleted files from the index. Shared-key access is disabled. | `storageSku` |
-| Secrets | Key Vault (RBAC mode) | The document upload key (`upload-api-key`), read by the web app through a Key Vault reference. | `keyVaultSku` |
+| Secrets | Key Vault (RBAC mode) | The administrator key for deleting documents (`upload-api-key`), read by the web app through a Key Vault reference. | `keyVaultSku` |
 | Monitoring | Log Analytics + workspace-based Application Insights | App telemetry (requests, dependencies, exceptions), plus diagnostic logs from App Service, AI Search and Azure OpenAI. | `logAnalyticsRetentionDays`, `logAnalyticsDailyQuotaGb` |
 
 ### Why these choices
@@ -49,7 +49,7 @@ The diagram source is [`imgs/architecture.svg`](../imgs/architecture.svg) (hand-
 
 ## 3. Ingesting documents (steps A-C)
 
-- **A.** A user with the upload key adds a file on the chat page (`POST /api/documents`, PDF/Office/HTML/Markdown/CSV/JSON/text, 16 MB max). Alternatively, `Deployment/scripts/ingest.sh` (or `.ps1`) uploads files or folders with `az storage blob upload`. Either way the file lands in the `documents` container, and the indexer is started.
+- **A.** A user adds a file on the chat page (no key needed) (`POST /api/documents`, PDF/Office/HTML/Markdown/CSV/JSON/text, 16 MB max). Alternatively, `Deployment/scripts/ingest.sh` (or `.ps1`) uploads files or folders with `az storage blob upload`. Either way the file lands in the `documents` container, and the indexer is started.
 - **B.** The indexer (managed identity, *Storage Blob Data Reader*) reads new and changed blobs. It also runs every 30 minutes, so files added any other way (Storage Explorer, AzCopy, a pipeline) are picked up.
 - **C.** The skillset splits the text and calls the embedding deployment (managed identity, *Cognitive Services OpenAI User*). Index projections write one search document per chunk (`chunk_id`, `parent_id`, `title` = file name, `chunk`, `text_vector`).
 
@@ -71,7 +71,7 @@ Scanned PDFs without a text layer are not OCR'd by this skillset. Add an OCR ski
   | AI Search | Cognitive Services OpenAI User | Azure OpenAI |
   | Deploying identity (scripts only) | Storage Blob Data Contributor, Search Service Contributor, Search Index Data Contributor, Cognitive Services OpenAI User, Key Vault Secrets Officer | respective resources |
 
-- **One secret**, the upload key, generated at deployment, kept in Key Vault and resolved by App Service. An unresolved Key Vault reference is never accepted as a key.
+- **One secret**, the administrator key for deleting documents, generated at deployment, kept in Key Vault and resolved by App Service. An unresolved Key Vault reference is never accepted as a key.
 - **Web hardening:** HTTPS only, TLS 1.2, FTP off, strict CSP, no inline script, model output rendered as text, generic error messages to the browser.
 - **Personal information** is masked in answers, snippets, stored conversations, exports and logs (section 2a).
 - **Not included:** user sign-in, private endpoints, WAF. See the README security notes for how to add sign-in.

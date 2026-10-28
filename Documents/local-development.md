@@ -11,7 +11,7 @@ Local mode replaces the Azure services with local equivalents, so you can work o
 | Azure AI Search | Keyword scoring over `Data/sample_docs` and uploaded `.md`/`.txt` files |
 | Azure OpenAI | An extractive stand-in that quotes the best sentences from the top sources, with citations |
 | Blob Storage | The `.localdata/documents` folder |
-| Key Vault | `UPLOAD_API_KEY` in `.env` (empty = uploads without a key) |
+| Key Vault | `UPLOAD_API_KEY` in `.env` (only for deleting documents; empty = no key needed) |
 
 ```bash
 make setup     # creates .venv and installs everything

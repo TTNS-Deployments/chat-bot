@@ -21,7 +21,7 @@ class OneSource:
 
 
 class Echo:
-    def complete(self, messages):
+    def complete(self, messages, max_tokens=None):
         return "Answer [1]."
 
 

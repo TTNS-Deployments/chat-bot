@@ -41,7 +41,7 @@ The script:
 
 1. Validates the SKU selection, including region and model availability (`--skip-region-check` skips the Azure part).
 2. Creates the resource group in the preset's `location` (override with `-l`).
-3. Deploys `azuredeploy.json` with the preset and your overrides. It grants **you** data access for ingestion, and keeps the existing upload key if Key Vault already has one.
+3. Deploys `azuredeploy.json` with the preset and your overrides. It grants **you** data access for ingestion, and keeps the existing administrator key if Key Vault already has one.
 4. Packages the code and deploys it to the web app (remote build).
 5. Waits until `/healthz` reports `"searchSetup": "ready"`, meaning the index and indexer exist.
 6. With `--seed`, uploads `Data/sample_docs` and starts the indexer.
@@ -86,8 +86,8 @@ See [demo-deployment.md](demo-deployment.md): `Deployment/scripts/deploy.sh -e d
 ## 3. After deployment
 
 1. **Health:** open `https://<web app>/healthz`. Expect `"status": "ok"` and `"searchSetup": "ready"`. `pending` means the app is still setting up; it retries for about 5 minutes. `failed` includes the reason; usually the role assignments were not active yet, so wait a few minutes and restart the web app.
-2. **Upload key:** `az keyvault secret show --vault-name <key vault> -n upload-api-key --query value -o tsv`. You need Key Vault Secrets User or Officer on the vault; the scripts grant it to the deploying identity. Portal deployments: assign yourself *Key Vault Secrets User* on the vault first.
-3. **Add documents:** use **Documents** on the chat page (paste the upload key), or run `Deployment/scripts/ingest.sh -g <rg> ./my-docs` (it uses the latest chatbot deployment in the group; `-n` picks another). The indexer status and per-file errors appear in the Documents dialog.
+2. **Administrator key** (only for deleting documents through the API): `az keyvault secret show --vault-name <key vault> -n upload-api-key --query value -o tsv`. You need Key Vault Secrets User or Officer on the vault; the scripts grant it to the deploying identity. Portal deployments: assign yourself *Key Vault Secrets User* on the vault first.
+3. **Add documents:** use **Documents** on the chat page (no key needed), or run `Deployment/scripts/ingest.sh -g <rg> ./my-docs` (it uses the latest chatbot deployment in the group; `-n` picks another). The indexer status and per-file errors appear in the Documents dialog.
 4. **Smoke test:** after `--seed`, ask "What does the warranty cover?". The answer should cite `warranty-policy.md`.
 5. **Replace the sample documents** with your own, and delete the samples from the container (the indexer removes them from the index on its next run).
 6. **Optional, sign-in:** to restrict the chatbot to your organisation, turn on App Service Authentication:
@@ -106,7 +106,7 @@ Locally everything runs without Azure (see [local-development.md](local-developm
 | `AuthorizationFailed` on role assignments | You need Owner, or Contributor + User Access Administrator, on the resource group. |
 | A Key Vault or Azure OpenAI name already exists / is soft-deleted | Purge it: `az keyvault purge -n <name>`; `az cognitiveservices account purge -n <name> -g <rg> -l <region>`. |
 | `/healthz` shows `"searchSetup": "failed"` | The detail says why. Usually roles had not propagated: restart the web app. If the index exists with another vector size, see "Changing the embedding model" in [Deployment/README.md](../Deployment/README.md). |
-| Upload returns "upload key is not available yet" | The Key Vault reference has not resolved. Wait a few minutes and restart the web app (*Configuration* shows a red mark on unresolved references). |
+| Deleting a document returns "administrator key is not available yet" | The Key Vault reference has not resolved. Wait a few minutes and restart the web app (*Configuration* shows a red mark on unresolved references). |
 | Chat returns "The service could not answer right now" | Application Insights → Failures shows the underlying error (deployment name, permissions, model retired). |
 | Answers say the information was not found | Documents dialog → indexing status and errors; confirm the file has a text layer (scanned PDFs need OCR). |
 | Portal deployment fails on `sourcecontrols` (Git deploy) | The infrastructure is in place; deploy the code with `deploy.sh --skip-infra`, or check *Web app → Deployment Center → Logs*. |

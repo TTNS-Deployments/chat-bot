@@ -2,7 +2,7 @@
 
 *AI based chatbot platform* · Author: Vaibhav Chaudhary
 
-The web app reads environment variables. On Azure they are App Service app settings written by the template (`Deployment/bicep/main.bicep`), so redeploying restores them. Locally they come from `.env` (copy `.env.example`). Nothing in this list is a secret except `UPLOAD_API_KEY`, which on Azure is a Key Vault reference.
+The web app reads environment variables. On Azure they are App Service app settings written by the template (`Deployment/bicep/main.bicep`), so redeploying restores them. Locally they come from `.env` (copy `.env.example`). Nothing in this list is a secret except `UPLOAD_API_KEY` (the administrator key for deleting documents), which on Azure is a Key Vault reference.
 
 ## Set by the deployment
 
@@ -28,7 +28,7 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `DEMO_PASSWORD` | `@Microsoft.KeyVault(VaultName=…;SecretName=demo-password)` | The shared password (only with `AUTH_MODE=password`). If it is empty or the reference is unresolved, sign-in is refused. |
 | `AZURE_SEARCH_API_KEY`, `AZURE_SEARCH_DATASOURCE_CONNECTION`, `AZURE_OPENAI_EMBEDDING_KEY` | Key Vault references | Only for a Free-tier search service, which has no managed identity: the search admin key, the storage connection string for the indexer, and the embedding key for the indexer and vectorizer |
 | `WEBSITE_RUN_FROM_PACKAGE`, `PYTHONPATH` | SAS URL, `/home/site/wwwroot/.packages` | Only for a run-from-package deployment (`deploy.sh --code-via-arm`) |
-| `UPLOAD_API_KEY` | `@Microsoft.KeyVault(VaultName=…;SecretName=upload-api-key)` | Key for the documents API. Locally, leave it empty to allow uploads without a key. |
+| `UPLOAD_API_KEY` | `@Microsoft.KeyVault(VaultName=…;SecretName=upload-api-key)` | Only for deleting documents (`DELETE /api/documents/{name}`, header `X-Upload-Key`). Adding and listing documents need no key. Locally, leave it empty to allow deletes without a key. |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | | Sends telemetry to Application Insights |
 | `SCM_DO_BUILD_DURING_DEPLOYMENT` | `true` | App Service installs `requirements.txt` during deployment |
 
@@ -41,6 +41,7 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `MAX_HISTORY_TURNS` | `6` | Earlier question/answer pairs sent to the model. |
 | `CHAT_TEMPERATURE` | not sent | Sampling temperature, only used when `CHAT_REASONING_EFFORT=none`. Models that reject it are detected and called without it. |
 | `CHAT_MAX_TOKENS` | `2000` | Maximum answer length (`max_completion_tokens`); for reasoning models this includes the reasoning tokens. |
+| `SUMMARY_MAX_TOKENS` | `150` | Answer tokens for a short summary ("summarize …"). Reasoning models get 400 more for reasoning, at `minimal` effort. The answer is also cut to about 90 words at a sentence boundary. Detailed summaries use `CHAT_MAX_TOKENS`. |
 | `RATE_LIMIT_PER_MINUTE` | `20` | Questions per client IP per minute, per instance. `0` disables the limit. |
 | `TRUST_FORWARDED_FOR` | `true` on App Service, else `false` | Take the client IP for the rate limit and sign-in lockout from the last `X-Forwarded-For` entry (added by the proxy). Set `true` only behind a proxy you trust; otherwise the header is ignored, because clients can forge it. |
 | `MAX_UPLOAD_MB` | `16` | Upload size limit. |
@@ -53,6 +54,6 @@ The web app reads environment variables. On Azure they are App Service app setti
 
 ## Changing the answer behaviour
 
-The system prompt is in `Code/backend/chatbot/prompts.py` (`SYSTEM_PROMPT`). It asks for answers only from the numbered sources, with `[n]` citations, and an explicit "not found" when the sources do not cover the question. It also states the scope and privacy rules, but those are enforced in code (`scope.py`, `privacy.py`), so wording changes cannot weaken them. Change the wording there (for example tone, language or answer length) and redeploy the code (`deploy.sh --skip-infra`). The unit tests in `Code/backend/tests/test_prompts.py` check the citation contract.
+The system prompt is in `Code/backend/chatbot/prompts.py` (`SYSTEM_PROMPT`). It asks for answers only from the numbered sources, with `[n]` citations, and an explicit "not found" when the sources do not cover the question. It also states the scope, privacy and summary rules, but those are enforced in code (`scope.py`, `privacy.py`, `summary.py`), so wording changes cannot weaken them. Change the wording there (for example tone, language or answer length) and redeploy the code (`deploy.sh --skip-infra`). The unit tests in `Code/backend/tests/test_prompts.py` check the citation contract.
 
 The chunk size (2,000 characters with 300 overlap) and the indexer schedule (30 minutes) are in `Code/backend/chatbot/search.py`. The app applies changes to the skillset and indexer on its next start. Run a reset and run of the indexer to re-chunk existing documents.

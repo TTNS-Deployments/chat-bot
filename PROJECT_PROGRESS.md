@@ -25,13 +25,15 @@ For anyone (person or AI session) picking up this work. Update it after each pie
 | 2026-10-22 | Cloud Shell code deployment: `package.py --vendor` (dependencies in `.packages`), upload with the storage account key, `WEBSITE_RUN_FROM_PACKAGE` SAS URL (1 year). `deploy.sh` passes the current package URL into infrastructure redeploys so they keep the running code. |
 | 2026-10-25 | `deploy.sh` reads the shared plan's location and kind one value at a time: the plan returns `reserved: null` and `kind: linux`, and `-o tsv` prints list queries one value per line. |
 | 2026-10-28 | Document scoping, masking of personal information and chat-history export, enforced in code (`scope.py`, `privacy.py`, `history.py`). Document ID = file name (`title` field, already filterable), so no index rebuild. Conversations stored as JSON files on App Service's shared `/home` (two gunicorn workers), masked, 7-day retention. Masking is rule-based (no NER package), .docx built without new dependencies; no PDF export. |
+| 2026-10-28 | Short summaries by default (`summary.py`): 2-3 sentences or 3-5 bullets, enforced by the prompt, a 150-token cap (`SUMMARY_MAX_TOKENS`; reasoning models get +400 at `minimal` effort, because reasoning counts towards the cap) and a ~90-word trim at a sentence boundary; "Want more detail?" added by the app. Unscoped: one line per document (up to 5, else the bot asks). |
+| 2026-10-28 | Adding documents needs no key (option b: embeddings stay server-side; the indexer embeds with its managed identity, or a Key Vault key on Free search, never in the browser). Uploads are behind sign-in when it is on and count towards the per-IP rate limit. `UPLOAD_API_KEY` (Key Vault `upload-api-key`) now only protects `DELETE /api/documents`, which the page does not offer. |
 | 2026-10-22 | Secrets (`demoPassword`, `uploadApiKey`) are passed with `--param`, written to Key Vault only when given; redeploys keep them. `deploy.sh` generates the upload key on the first deployment and prints it once. |
 
 ## Status
 
 | Item | Status |
 |---|---|
-| App, tests (188), Bicep/ARM, portal form, presets, scripts, docs | Done; tested locally and against a mock Azure CLI |
+| App, tests (220), Bicep/ARM, portal form, presets, scripts, docs | Done; tested locally and against a mock Azure CLI |
 | Demo preset (`demo.parameters.json`, `Deployment/environments/demo.env`), password sign-in, Free-search key mode, Cloud Shell code path | Done; not yet deployed |
 | Package with dependencies | Verified: runs on a clean Python 3.12 with only `.packages`, using the App Service startup command |
 | First live deployment of the demo | **Done 2026-10-25** from Cloud Shell: `deploy.sh -e demo`. Resource suffix `wewqam` (web app `chatbot-web-wewqam`, Key Vault `chatbot-kv-wewqam`, storage `chatbotstwewqam`). `/healthz` reported the search index ready. Secrets are in Key Vault only. |

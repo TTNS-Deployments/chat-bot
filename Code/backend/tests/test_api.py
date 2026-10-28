@@ -28,10 +28,10 @@ class FakeRetriever:
 
 class FakeModel:
     def __init__(self, reply="Refunds take 5 days [1].", error=None):
-        self.reply, self.error, self.messages = reply, error, None
+        self.reply, self.error, self.messages, self.max_tokens = reply, error, None, None
 
-    def complete(self, messages):
-        self.messages = messages
+    def complete(self, messages, max_tokens=None):
+        self.messages, self.max_tokens = messages, max_tokens
         if self.error:
             raise self.error
         return self.reply
@@ -140,46 +140,86 @@ def test_rate_limiter_window_and_disable():
     assert all(RateLimiter(0).allow("a") for _ in range(100))
 
 
-def test_upload_requires_key():
+def test_upload_needs_no_key():
     client, components, *_ = make(search=FakeSearch())
     files = {"file": ("Policy Guide.pdf", b"%PDF-1.7 data", "application/pdf")}
-    assert client.post("/api/documents", files=files).status_code == 401
-    assert client.post("/api/documents", files=files, headers={"X-Upload-Key": "wrong"}).status_code == 401
-    r = client.post("/api/documents", files=files, headers={"X-Upload-Key": "secret-key"})
+    r = client.post("/api/documents", files=files)
     assert r.status_code == 201
     assert r.json() == {"name": "Policy Guide.pdf", "size": 13, "indexing": "started"}
     assert components.search.runs == 1
-    listing = client.get("/api/documents", headers={"X-Upload-Key": "secret-key"}).json()
+    listing = client.get("/api/documents").json()
     assert listing["documents"][0]["name"] == "Policy Guide.pdf" and listing["indexer"]["status"] == "success"
+
+
+def test_upload_ignores_a_stale_key_header():
+    client, *_ = make()
+    r = client.post("/api/documents", files={"file": ("a.txt", b"x", "text/plain")}, headers={"X-Upload-Key": "wrong"})
+    assert r.status_code == 201
 
 
 def test_upload_rejects_bad_files():
     client, *_ = make(Settings(mode="local", upload_api_key="k", max_upload_mb=1, rate_limit_per_minute=0))
-    h = {"X-Upload-Key": "k"}
-    assert client.post("/api/documents", files={"file": ("run.exe", b"MZ", "application/octet-stream")}, headers=h).status_code == 415
-    assert client.post("/api/documents", files={"file": ("big.txt", b"a" * (1024 * 1024 + 1), "text/plain")}, headers=h).status_code == 413
-    assert client.post("/api/documents", files={"file": ("empty.txt", b"", "text/plain")}, headers=h).status_code == 422
+    assert client.post("/api/documents", files={"file": ("run.exe", b"MZ", "application/octet-stream")}).status_code == 415
+    assert client.post("/api/documents", files={"file": ("big.txt", b"a" * (1024 * 1024 + 1), "text/plain")}).status_code == 413
+    assert client.post("/api/documents", files={"file": ("empty.txt", b"", "text/plain")}).status_code == 422
 
 
 def test_upload_disabled():
     client, *_ = make(Settings(mode="local", allow_document_upload=False))
     r = client.post("/api/documents", files={"file": ("a.txt", b"x", "text/plain")})
-    assert r.status_code == 403
+    assert r.status_code == 403 and r.json()["error"]["code"] == "upload_disabled"
 
 
-def test_unresolved_key_vault_reference_never_matches():
+def test_upload_is_rate_limited():
+    client, *_ = make(Settings(mode="local", rate_limit_per_minute=1))
+    codes = [client.post("/api/documents", files={"file": ("a.txt", b"x", "text/plain")}).status_code for _ in range(2)]
+    assert codes == [201, 429]
+
+
+def test_upload_works_in_azure_mode_while_the_key_vault_reference_is_unresolved():
     literal = "@Microsoft.KeyVault(VaultName=kv;SecretName=upload-api-key)"
     settings = Settings(mode="azure", upload_api_key=literal, rate_limit_per_minute=0,
                         openai_endpoint="https://a.openai.azure.com", search_endpoint="https://s.search.windows.net",
                         storage_account_url="https://st.blob.core.windows.net/", storage_resource_id="/subscriptions/x")
-    client, *_ = make(settings)
-    r = client.post("/api/documents", files={"file": ("a.txt", b"x", "text/plain")}, headers={"X-Upload-Key": literal})
+    client, *_ = make(settings, search=FakeSearch())
+    assert client.post("/api/documents", files={"file": ("a.txt", b"x", "text/plain")}).status_code == 201
+    # Deleting still needs the key, and an unresolved reference never matches.
+    r = client.delete("/api/documents/a.txt", headers={"X-Upload-Key": literal})
     assert r.status_code == 503 and r.json()["error"]["code"] == "not_configured"
 
 
-def test_delete_document():
+def test_upload_failures_are_reported_clearly():
+    class BrokenStore(MemoryStore):
+        def save(self, name, data, content_type):
+            raise OSError("storage account unreachable")
+
+    class BrokenSearch(FakeSearch):
+        def run_indexer(self):
+            raise UpstreamError("indexer busy")
+
+    client, components, *_ = make()
+    components.documents = BrokenStore()
+    r = client.post("/api/documents", files={"file": ("a.txt", b"x", "text/plain")})
+    assert r.status_code == 502 and r.json()["error"]["code"] == "upload_failed" and "unreachable" not in r.text
+    client, components, *_ = make(search=BrokenSearch())
+    r = client.post("/api/documents", files={"file": ("a.txt", b"x", "text/plain")})
+    assert r.status_code == 201 and r.json()["indexing"] == "scheduled"
+
+
+def test_chat_page_has_no_key_field():
+    client, *_ = make()
+    page, script = client.get("/").text.lower(), client.get("/app.js").text.lower()
+    assert 'id="file"' in page and 'id="upload-form"' in page
+    for text in (page, script):
+        assert "upload-key" not in text and "upload key" not in text and "x-upload-key" not in text
+        assert 'type="password"' not in text and "api key" not in text
+
+
+def test_delete_document_needs_the_key():
     client, components, *_ = make(search=FakeSearch())
     components.documents.files["a.txt"] = b"x"
+    assert client.delete("/api/documents/a.txt").status_code == 401
+    assert client.delete("/api/documents/a.txt", headers={"X-Upload-Key": "wrong"}).status_code == 401
     h = {"X-Upload-Key": "secret-key"}
     assert client.delete("/api/documents/a.txt", headers=h).json() == {"deleted": "a.txt"}
     assert client.delete("/api/documents/a.txt", headers=h).status_code == 404

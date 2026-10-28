@@ -16,6 +16,7 @@ from .privacy import hidden_note, mask, requested_reveals
 from .prompts import Citation, build_messages, extract_citations, select_passages
 from .retrieval import AzureSearchRetriever, LocalRetriever, Retriever, build_search_query
 from .scope import resolve_scope
+from . import summary as summaries
 from .search import SearchClient, ensure_search_resources
 
 log = logging.getLogger(__name__)
@@ -70,10 +71,28 @@ class ChatService:
             log.info("Asked which document is meant (scope unclear)")
             return ChatAnswer(answer=scope.clarify, citations=[], scope=tuple(previous_scope), clarification=True)
 
+        kind = summaries.summary_request(question, history)
+        each: list[str] = []  # an unscoped short summary covers each document separately
+        if kind == summaries.SHORT and not scope.documents:
+            names = self.catalog.names()
+            if len(names) > summaries.MAX_DOCUMENTS:
+                return ChatAnswer(answer=f"Which document should I summarize? The available documents are: "
+                                         f"{', '.join(names)}. Name it, or choose it in the “Search in” list.",
+                                  citations=[], clarification=True)
+            each = names if len(names) > 1 else []
+
         asked = requested_reveals(question)
         reveal = asked if self.settings.allow_sensitive_reveal else frozenset()
         query = build_search_query(question, history)
-        found = self.retriever.retrieve(query, self.settings.search_top_k, scope.documents)
+        if each:
+            per_document = max(1, self.settings.search_top_k // len(each))
+            found = [p for name in each
+                     for p in self.retriever.retrieve(summaries.summary_query(query, [name]), per_document, (name,))]
+            each = list(dict.fromkeys(p.title for p in found))
+        else:
+            if kind:
+                query = summaries.summary_query(query, scope.documents or self.catalog.names()[:1])
+            found = self.retriever.retrieve(query, self.settings.search_top_k, scope.documents)
         passages = select_passages(found, self.settings.max_source_chars)
         if scope.documents and not passages:
             # Never fall back to other documents: say so and let the user widen the search.
@@ -82,8 +101,15 @@ class ChatService:
                     f"To look in every document, say “search all documents”.")
             return ChatAnswer(answer=text, citations=[], scope=scope.documents)
 
-        messages = build_messages(question, history, passages, self.settings.max_history_turns, scope.documents, reveal)
-        text = self.model.complete(messages)
+        documents = max(1, len(each))
+        messages = build_messages(question, history, passages, self.settings.max_history_turns, scope.documents, reveal,
+                                  kind, documents)
+        short = kind == summaries.SHORT and bool(passages)
+        cap = self.settings.summary_max_tokens + summaries.TOKENS_PER_DOCUMENT * (documents - 1) if short else None
+        text = self.model.complete(messages, max_tokens=cap)
+        if short and text:
+            limit = summaries.SHORT_WORDS if documents == 1 else summaries.WORDS_PER_DOCUMENT * documents
+            text = summaries.trim_summary(summaries.strip_offer(text), limit)
         if not text:
             text = "I could not produce an answer. Please try rephrasing the question."
         masked = mask(text, reveal)
@@ -91,10 +117,12 @@ class ChatService:
         notes = [hidden_note(masked.hidden)]
         if asked and not reveal:
             notes.append(REVEAL_DISABLED_NOTE)
+        if short:
+            notes.append(summaries.MORE_DETAIL)
         answer = "\n\n".join([masked.text, *filter(None, notes)])
-        log.info("Answered a question: %d history messages, %d sources, %d cited, scope %s, revealed %s",
+        log.info("Answered a question: %d history messages, %d sources, %d cited, scope %s, revealed %s, summary %s",
                  len(history), len(passages), len(citations), f"{len(scope.documents)} document(s)"
-                 if scope.documents else "all", ",".join(sorted(reveal)) or "nothing")
+                 if scope.documents else "all", ",".join(sorted(reveal)) or "nothing", kind or "no")
         return ChatAnswer(answer=answer, citations=citations, scope=scope.documents, revealed=reveal)
 
 

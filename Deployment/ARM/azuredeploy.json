@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "5125189804778696451"
+      "templateHash": "17794583310464870299"
     },
     "description": "AI Based Chatbot: Azure OpenAI, Azure AI Search, Blob Storage, App Service, Key Vault and monitoring. All service-to-service access uses managed identities."
   },
@@ -334,14 +334,14 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Let users add documents from the chat page. Uploads always require the upload key stored in Key Vault."
+        "description": "Let users add documents from the chat page (no key needed; behind sign-in when it is on)."
       }
     },
     "uploadApiKey": {
       "type": "securestring",
       "defaultValue": "",
       "metadata": {
-        "description": "Key that protects document upload, stored in Key Vault as upload-api-key. Leave empty on a redeploy to keep the stored key."
+        "description": "Administrator key for deleting documents through the API, stored in Key Vault as upload-api-key. Adding documents needs no key. Leave empty on a redeploy to keep the stored key."
       }
     },
     "authMode": {
@@ -677,7 +677,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "11039385571559713962"
+              "templateHash": "13713747777408388408"
             }
           },
           "parameters": {
@@ -726,7 +726,7 @@
               "name": "[format('{0}/{1}', parameters('name'), 'upload-api-key')]",
               "properties": {
                 "value": "[parameters('uploadApiKey')]",
-                "contentType": "Key for POST /api/documents (header X-Upload-Key)"
+                "contentType": "Key for DELETE /api/documents (header X-Upload-Key)"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"

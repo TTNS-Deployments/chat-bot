@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="t d" font-family="'Segoe UI', Helvetica, Arial, sans-serif">
   <title id="t">AI Based Chatbot architecture</title>
-  <desc id="d">Users open the chat page on App Service. The web app searches Azure AI Search with hybrid and semantic ranking, sends the question and the sources to Azure OpenAI, and returns the answer with citations. Uploaded documents go to Blob Storage; the AI Search indexer splits and embeds them with the Azure OpenAI embedding model. Key Vault holds the upload key. Application Insights and Log Analytics collect telemetry. All service-to-service calls use managed identities.</desc>
+  <desc id="d">Users open the chat page on App Service. The web app searches Azure AI Search with hybrid and semantic ranking, sends the question and the sources to Azure OpenAI, and returns the answer with citations. Uploaded documents go to Blob Storage; the AI Search indexer splits and embeds them with the Azure OpenAI embedding model. Key Vault holds the administrator key for deleting documents. Application Insights and Log Analytics collect telemetry. All service-to-service calls use managed identities.</desc>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1F4E8C"/></marker>
     <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0B7A6E"/></marker>

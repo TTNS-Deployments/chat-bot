@@ -615,18 +615,14 @@ def test_FE_013_local_storage_empty(tab, record):
     p = tab.open()
     tab.ask("What does the warranty cover?")
     p.click("#docs-button")
-    p.fill("#upload-key", "qa-fake-upload-key")
-    p.dispatch_event("#upload-key", "change")
     ls = p.evaluate("Object.keys(localStorage)")
     record(actual=f"localStorage keys={ls}")
     assert ls == []
 
 
-def test_FE_014_no_secret_in_session_storage(tab, record):
+def test_FE_014_documents_dialog_has_no_key_field(tab, record):
     p = tab.open()
     p.click("#docs-button")
-    p.fill("#upload-key", "qa-fake-upload-key")
-    p.dispatch_event("#upload-key", "change")
-    ss = p.evaluate("Object.fromEntries(Object.entries(sessionStorage))")
-    record(actual=f"sessionStorage keys={list(ss)}; upload key stored in clear text={'qa-fake-upload-key' in json.dumps(ss)}")
-    assert "qa-fake-upload-key" not in json.dumps(ss), "upload key persisted in sessionStorage"
+    fields = p.evaluate("[...document.querySelectorAll('#docs-dialog input')].map(i => i.type)")
+    record(actual=f"inputs in the Documents dialog={fields}")
+    assert fields == ["file"], "the Documents dialog asks for something besides the file"

@@ -653,7 +653,7 @@
             "type": "Microsoft.Common.DropDown",
             "label": "Key Vault tier",
             "defaultValue": "standard",
-            "toolTip": "Standard is enough: the vault holds one secret (the upload key).",
+            "toolTip": "Standard is enough: the vault holds one secret (the administrator key).",
             "constraints": {
               "allowedValues": [
                 {
@@ -757,7 +757,7 @@
             "type": "Microsoft.Common.OptionsGroup",
             "label": "Document upload from the chat page",
             "defaultValue": "Enabled",
-            "toolTip": "Uploads always need the upload key, which is stored in Key Vault as upload-api-key.",
+            "toolTip": "Anyone who can use the chat page can add documents; no key is needed.",
             "constraints": {
               "allowedValues": [
                 {
@@ -777,10 +777,10 @@
             "name": "uploadApiKey",
             "type": "Microsoft.Common.PasswordBox",
             "label": {
-              "password": "Upload key",
-              "confirmPassword": "Confirm upload key"
+              "password": "Administrator key",
+              "confirmPassword": "Confirm administrator key"
             },
-            "toolTip": "Needed to add documents on the chat page. Stored in Key Vault as upload-api-key.",
+            "toolTip": "Only for deleting documents through the API (header X-Upload-Key). Adding documents needs no key. Stored in Key Vault as upload-api-key.",
             "constraints": {
               "required": true,
               "regex": "^.{12,128}$",

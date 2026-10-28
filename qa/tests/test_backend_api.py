@@ -295,21 +295,19 @@ def test_BE_006_password_mode_without_password(tmp_path, record):
     assert chat.status_code == 401
 
 
-def test_BE_030_upload_key_enforced(tmp_path, record):
+def test_BE_030_upload_needs_no_key_delete_does(tmp_path, record):
     c = make_client(tmp_path, UPLOAD_API_KEY="qa-fake-upload-key")
     files = {"file": ("note.md", b"# Note\nhello", "text/markdown")}
     res = {
-        "list no key": c.get("/api/documents").status_code,
-        "list wrong key": c.get("/api/documents", headers={"X-Upload-Key": "nope"}).status_code,
         "upload no key": c.post("/api/documents", files=files).status_code,
+        "list no key": c.get("/api/documents").status_code,
+        "delete no key": c.delete("/api/documents/note.md").status_code,
         "delete wrong key": c.delete("/api/documents/note.md", headers={"X-Upload-Key": "nope"}).status_code,
-        "upload right key": c.post("/api/documents", files=files, headers={"X-Upload-Key": "qa-fake-upload-key"}).status_code,
-        "list right key": c.get("/api/documents", headers={"X-Upload-Key": "qa-fake-upload-key"}).status_code,
         "delete right key": c.delete("/api/documents/note.md", headers={"X-Upload-Key": "qa-fake-upload-key"}).status_code,
     }
     record(actual=json.dumps(res))
-    assert [res[k] for k in ("list no key", "list wrong key", "upload no key", "delete wrong key")] == [401] * 4
-    assert [res[k] for k in ("upload right key", "list right key", "delete right key")] == [201, 200, 200]
+    assert [res[k] for k in ("upload no key", "list no key")] == [201, 200]
+    assert [res[k] for k in ("delete no key", "delete wrong key", "delete right key")] == [401, 401, 200]
 
 
 # ------------------------------------------------------------------ RAG (local retriever + extractive stand-in)

@@ -277,9 +277,10 @@ if [[ "$AUTH_MODE" == "password" ]]; then
   echo "Sign-in:         the demo password (Key Vault secret demo-password in $VAULT)."
 fi
 if [[ -n "$NEW_UPLOAD_KEY" ]]; then
-  echo "Upload key:      $NEW_UPLOAD_KEY"
+  echo "Admin key:       $NEW_UPLOAD_KEY"
+  echo "                 Only for deleting documents through the API; adding documents needs no key."
   echo "                 Save it now. It is stored in Key Vault $VAULT as upload-api-key; pass"
   echo "                 --param uploadApiKey='...' on a later deployment to change it."
 else
-  echo "Upload key:      Key Vault $VAULT, secret upload-api-key (unchanged)."
+  echo "Admin key:       Key Vault $VAULT, secret upload-api-key (unchanged; only for deleting documents)."
 fi

@@ -60,6 +60,7 @@ class Settings:
     chat_reasoning_effort: str = "low"  # minimal | low | medium | high, or "none" for non-reasoning models
     chat_temperature: float | None = None  # only sent to non-reasoning models
     chat_max_tokens: int = 2000  # reasoning tokens count towards this limit
+    summary_max_tokens: int = 150  # answer tokens for a short summary
     embedding_endpoint: str = ""
     embedding_api_key: str = field(default="", repr=False)
     embedding_deployment: str = "embedding"
@@ -79,7 +80,7 @@ class Settings:
     storage_resource_id: str = ""
 
     allow_document_upload: bool = True
-    upload_api_key: str = field(default="", repr=False)
+    upload_api_key: str = field(default="", repr=False)  # only for deleting documents through the API
     max_upload_mb: int = 16
 
     auth_mode: str = "none"  # none | password
@@ -137,6 +138,7 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
         chat_reasoning_effort=(e.get("CHAT_REASONING_EFFORT") or Settings.chat_reasoning_effort).lower(),
         chat_temperature=_float(e.get("CHAT_TEMPERATURE"), Settings.chat_temperature),
         chat_max_tokens=_int(e.get("CHAT_MAX_TOKENS"), Settings.chat_max_tokens),
+        summary_max_tokens=max(50, _int(e.get("SUMMARY_MAX_TOKENS"), Settings.summary_max_tokens)),
         embedding_endpoint=e.get("AZURE_OPENAI_EMBEDDING_ENDPOINT", "").rstrip("/"),
         embedding_api_key=_secret(e.get("AZURE_OPENAI_EMBEDDING_KEY")),
         embedding_deployment=e.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT") or Settings.embedding_deployment,

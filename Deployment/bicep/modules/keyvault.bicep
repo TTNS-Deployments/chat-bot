@@ -1,4 +1,4 @@
-// Key Vault (RBAC mode). Holds the document upload key and, for demo sign-in, the demo password.
+// Key Vault (RBAC mode). Holds the administrator key for deleting documents and, for demo sign-in, the demo password.
 // The web app reads them through Key Vault references with its managed identity.
 // A secret is written only when a value is passed, so a redeploy without it keeps the stored one.
 
@@ -35,7 +35,7 @@ resource uploadKey 'Microsoft.KeyVault/vaults/secrets@2025-05-01' = if (!empty(u
   name: 'upload-api-key'
   properties: {
     value: uploadApiKey
-    contentType: 'Key for POST /api/documents (header X-Upload-Key)'
+    contentType: 'Key for DELETE /api/documents (header X-Upload-Key)'
   }
 }
 

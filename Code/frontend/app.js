@@ -1,9 +1,8 @@
 // AI Based Chatbot – chat page. Plain JavaScript, no build step.
 // The conversation lives in this tab (sessionStorage) and is sent with each question so the
 // backend can resolve follow-ups. Model output is rendered with DOM text nodes, never innerHTML.
-// The upload key is kept in memory only, never in browser storage. The server also stores the
-// conversation (masked) under a random ID, for the "Download chat" export, and remembers which
-// documents it is limited to ("Search in").
+// The server also stores the conversation (masked) under a random ID, for the "Download chat"
+// export, and remembers which documents it is limited to ("Search in"). Adding documents needs no key.
 (() => {
   "use strict";
 
@@ -12,7 +11,6 @@
   const STORE_KEY = "chatbot.conversation";
   const ID_KEY = "chatbot.conversationId";
   const SCOPE_KEY = "chatbot.scope";
-  const OLD_KEY_KEY = "chatbot.uploadKey"; // where earlier versions stored the upload key
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -21,7 +19,7 @@
     form: $("composer"), input: $("input"), send: $("send"), newChat: $("new-chat"),
     chat: $("chat"), suggestions: $("suggestions"), title: $("title"), subtitle: $("subtitle"),
     docsButton: $("docs-button"), dialog: $("docs-dialog"), uploadForm: $("upload-form"),
-    file: $("file"), uploadKey: $("upload-key"), uploadButton: $("upload-button"),
+    file: $("file"), uploadButton: $("upload-button"),
     uploadStatus: $("upload-status"), docList: $("doc-list"), indexerStatus: $("indexer-status"),
     refreshDocs: $("refresh-docs"), signOut: $("sign-out"), scope: $("scope"),
     downloadMenu: $("download-menu"),
@@ -41,8 +39,6 @@
   let documentNames = [];
   let busy = false;
   let lastQuestion = null;
-  let uploadKey = "";
-  storage.remove(OLD_KEY_KEY);
 
   // ------------------------------------------------------------------ rendering
   function el(tag, attrs = {}, ...children) {
@@ -306,7 +302,6 @@
   });
 
   // ------------------------------------------------------------------ documents
-  const keyHeaders = () => (els.uploadKey.value ? { "X-Upload-Key": els.uploadKey.value } : {});
   const sizeText = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
   function uploadStatus(text, bad = false) {
@@ -317,7 +312,7 @@
   async function loadDocuments() {
     els.indexerStatus.textContent = "Loading…";
     try {
-      const data = await api("/api/documents", { headers: keyHeaders() });
+      const data = await api("/api/documents");
       els.docList.replaceChildren(...data.documents.map((d) =>
         el("li", {}, el("span", { text: d.name }), el("span", { class: "muted", text: sizeText(d.size) }))));
       if (!data.documents.length) els.docList.append(el("li", { class: "muted", text: "No documents yet." }));
@@ -335,12 +330,10 @@
   }
 
   els.docsButton.addEventListener("click", () => {
-    els.uploadKey.value = uploadKey;
     uploadStatus("");
     els.dialog.showModal();
     loadDocuments();
   });
-  els.uploadKey.addEventListener("change", () => { uploadKey = els.uploadKey.value; });
   els.refreshDocs.addEventListener("click", loadDocuments);
 
   els.uploadForm.addEventListener("submit", async (e) => {
@@ -354,11 +347,10 @@
     els.uploadButton.disabled = true;
     uploadStatus(`Uploading ${file.name}…`);
     try {
-      const result = await api("/api/documents", { method: "POST", headers: keyHeaders(), body });
-      uploadKey = els.uploadKey.value;
+      const result = await api("/api/documents", { method: "POST", body });
       loadDocumentNames();
-      uploadStatus(result.indexing === "local"
-        ? `${result.name} added.`
+      uploadStatus(result.indexing === "local" ? `${result.name} added.`
+        : result.indexing === "scheduled" ? `${result.name} uploaded. It is indexed on the next scheduled run (within 30 minutes).`
         : `${result.name} uploaded. Indexing ${result.indexing}; it is searchable in a few minutes.`);
       els.uploadForm.reset();
       loadDocuments();

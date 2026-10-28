@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from .retrieval import Passage
+from .summary import DETAILED, SHORT
 
 SYSTEM_PROMPT = """You are AI Based Chatbot, a document assistant. Answer only from the numbered sources supplied with each question; each source is labelled with its document.
 
@@ -22,6 +23,12 @@ SCOPE
 PRIVACY
 - By default, do not display personal or customer-identifying information: customer counts, names, addresses, phone numbers, emails, ID or account numbers. Write "[hidden]" instead.
 - Show such information only when the question lists it under "Show on request", and only those items.
+
+SUMMARIES
+- When asked for a summary, reply in 2-3 sentences or at most 3-5 short bullets (about 60-80 words). Cover only the key points. No introduction, no conclusion, no repetition.
+- Give a longer summary only if the user explicitly asks for a detailed or full one.
+- Summarize only the document the user named. Do not mix documents.
+- Keep personal or customer information hidden unless asked.
 
 CHAT HISTORY
 - Downloads of the chat history are handled by the application, not by you. Never claim to have exported anything.
@@ -83,6 +90,21 @@ def privacy_note(reveal: Iterable[str]) -> str:
     return f"Show on request: {', '.join(wanted)}. Keep every other kind of personal information hidden."
 
 
+def summary_note(summary: str, scope: Sequence[str] = (), documents: int = 1) -> str:
+    """What kind of summary the user asked for ("" when the question is not a summary request)."""
+    if summary == DETAILED:
+        return ("Summary: detailed. The user explicitly asked for a detailed summary; cover each main section, "
+                "without repeating yourself.")
+    if summary != SHORT:
+        return ""
+    if not scope and documents > 1:
+        return (f"Summary: short. The sources come from {documents} documents: write exactly one line per document, "
+                "starting with the document name in bold, about 20 words each. Do not mix documents.")
+    return ("Summary: short. 2-3 sentences or 3-5 short bullets, 60-80 words in total: the main purpose, the most "
+            "important facts and the outcome or conclusion. No introduction, no closing line, no section-by-section "
+            "breakdown, no repeated details. Do not offer more detail; the application does that.")
+
+
 def trim_history(history: Sequence[dict], max_turns: int) -> list[dict]:
     """Keep the last `max_turns` user/assistant exchanges, starting with a user message."""
     messages = [{"role": m["role"], "content": m["content"]} for m in history
@@ -96,14 +118,16 @@ def trim_history(history: Sequence[dict], max_turns: int) -> list[dict]:
 
 
 def build_messages(question: str, history: Sequence[dict], passages: Sequence[Passage], max_turns: int,
-                   scope: Sequence[str] = (), reveal: Iterable[str] = ()) -> list[dict]:
+                   scope: Sequence[str] = (), reveal: Iterable[str] = (), summary: str = "",
+                   documents: int = 1) -> list[dict]:
     """System prompt, recent conversation, then the question with this turn's sources.
 
     Sources go only into the current turn: earlier answers keep their citations as text, and the
-    prompt stays small. The scope and privacy notes tell the model what the application enforces.
+    prompt stays small. The scope, privacy and summary notes tell the model what the application enforces.
+    `documents` is how many documents the sources of an unscoped summary come from.
     """
-    user = (f"Sources:\n{format_sources(passages)}\n\n{scope_note(scope)}\n{privacy_note(reveal)}\n\n"
-            f"Question: {question.strip()}")
+    notes = "\n".join(filter(None, [scope_note(scope), privacy_note(reveal), summary_note(summary, scope, documents)]))
+    user = f"Sources:\n{format_sources(passages)}\n\n{notes}\n\nQuestion: {question.strip()}"
     return [{"role": "system", "content": SYSTEM_PROMPT}, *trim_history(history, max_turns), {"role": "user", "content": user}]
 
 

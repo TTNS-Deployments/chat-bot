@@ -26,7 +26,7 @@ class Recorder:
     def __init__(self):
         self.prompts = []
 
-    def complete(self, messages):
+    def complete(self, messages, max_tokens=None):
         prompt = messages[-1]["content"]
         self.prompts.append(prompt)
         sources = prompt.split("\n\nScope: ")[0].split("\n\n[")

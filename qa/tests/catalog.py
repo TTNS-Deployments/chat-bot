@@ -35,7 +35,7 @@ TESTS = [
     ("BE-027", B, "High", "Auth – invalid/expired token", "Call /api/chat with garbage, expired, other-password, tampered-signature, extended-expiry, empty and valid cookies.", "Only the valid token gets 200; all others 401.", API),
     ("BE-028", B, "High", "Auth – cookie flags", "Login over http and with X-Forwarded-Proto: https; inspect Set-Cookie; chat with cookie.", "HttpOnly and SameSite=Lax always; Secure on https; chat 200.", API),
     ("BE-029", B, "Medium", "Auth – logout", "Login, copy cookie, POST /api/logout, replay the copied cookie.", "Replayed cookie rejected (session revoked) → 401.", API),
-    ("BE-030", B, "High", "Auth – upload key", "UPLOAD_API_KEY set; list/upload/delete with no key, wrong key, right key.", "401 without/with wrong key; 201/200/200 with the right key.", API),
+    ("BE-030", B, "High", "Upload without a key", "UPLOAD_API_KEY set; upload and list with no key; delete with no key, wrong key, right key.", "Upload 201 and list 200 without a key; delete 401/401/200.", API),
     ("BE-031", B, "High", "LLM failure – timeout", "Real openai SDK via mock transport raising ReadTimeout.", "502 upstream_error, friendly message, fast return, no secrets/stack trace.", LLMF),
     ("BE-032", B, "High", "LLM failure – 429", "Mock transport returns 429.", "503 busy with friendly message.", LLMF),
     ("BE-033", B, "High", "LLM failure – 5xx", "Mock transport returns 500/502/503.", "502 upstream_error with friendly message.", LLMF),
@@ -100,15 +100,15 @@ TESTS = [
     ("FE-003", F, "High", "Static assets", "GET /, app.js, app.css, favicon.svg, login.html, login.js.", "200 with correct content types.", UIF),
     ("FE-004", F, "Critical", "XSS – bot reply", "Return a reply with <script>, <img onerror>, <svg onload>, iframe, inline handler.", "Shown as text; no dialog; no injected elements or scripts.", UIF),
     ("FE-005", F, "Critical", "XSS – user message & sources", "Send payloads as the user message and as citation title/snippet; reload (re-render from storage).", "No dialog, no injected elements.", UIF),
-    ("FE-006", F, "High", "Secrets in bundle/requests", "Scan served HTML/JS/CSS for secret patterns; record auth/key headers on requests during a chat.", "No secrets; no key/auth headers sent (no upload key entered).", UIF),
+    ("FE-006", F, "High", "Secrets in bundle/requests", "Scan served HTML/JS/CSS for secret patterns; record auth/key headers on requests during a chat.", "No secrets; no key/auth headers sent (adding documents needs no key).", UIF),
     ("FE-007", F, "High", "Cookie flags (browser)", "Sign in through the login page; inspect cookie and document.cookie.", "HttpOnly, SameSite=Lax, not readable by JS.", UIF),
     ("FE-008", F, "Medium", "CSRF", "While signed in, a page on another site auto-submits a text/plain form POST to /api/chat.", "Session cookie not sent / request not accepted (status ≠ 200).", UIF),
     ("FE-009", F, "High", "Responsive", "At 375×812, 768×1024, 1280×800: chat with long text; open Documents.", "No horizontal scroll; input, send, header buttons and dialog fit on screen.", UIF),
     ("FE-010", F, "Medium", "Accessibility (axe)", "axe-core scan of welcome, conversation, Documents dialog and login, light and dark.", "lang/title/labels present; no serious or critical violations.", UIF),
     ("FE-011", F, "High", "Keyboard only", "Tab through the page; type and press Enter.", "Input, Send and header buttons reachable; visible focus; Enter sends; focus returns to input.", UIF),
     ("FE-012", F, "Medium", "Colour contrast", "axe color-contrast rule on conversation + error state, light and dark.", "No WCAG AA contrast violations.", UIF),
-    ("FE-013", F, "High", "localStorage", "Chat and enter an upload key; read localStorage.", "localStorage empty.", UIF),
-    ("FE-014", F, "Low", "Secrets in sessionStorage", "Enter an upload key in the Documents dialog; read sessionStorage.", "Upload key not persisted in web storage.", UIF),
+    ("FE-013", F, "High", "localStorage", "Chat and open the Documents dialog; read localStorage.", "localStorage empty.", UIF),
+    ("FE-014", F, "Low", "No key field", "Open the Documents dialog; list its inputs.", "Only the file input; no key is asked for.", UIF),
 ]
 
 # (id, severity, layer, title, steps, expected, actual, affected, cause)
@@ -153,7 +153,8 @@ FIXES = {
     "DEF-04": "app.js: the submit handler returns before clearing the box while an answer is loading, so the next question stays in the input.",
     "DEF-05": "app.js: each history entry sent to the API is cut to 8,000 characters (the API's limit).",
     "DEF-06": "llm.py: an unexpected response shape raises UpstreamError; search.py: non-JSON/non-object replies raise UpstreamError (both → 502 upstream_error).",
-    "DEF-07": "app.js: the upload key is kept in a JavaScript variable only; any key stored by an earlier version is removed from sessionStorage on load.",
+    "DEF-07": "app.js: the upload key is kept in a JavaScript variable only; any key stored by an earlier version is removed from sessionStorage on load. "
+              "Since 2026-10-28 adding documents needs no key, so the page has no key field at all (FE-014).",
 }
 
 OUT_OF_SCOPE = [

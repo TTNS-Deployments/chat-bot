@@ -18,9 +18,10 @@ The solution is a deployable template. You choose the tier (SKU) of every Azure 
 - **Follow-up questions.** The conversation stays in the browser tab and recent turns are sent with each question, so "and for returns?" works.
 - **Search one document.** Pick it under "Search in", or say "only in the warranty policy" / "specifically from the returns document". The filter is applied in the search query, the choice holds for follow-ups until you change it or say "search all documents", and the bot asks when the document is unclear. Unscoped answers say which document each fact comes from.
 - **Personal information hidden by default.** Names, addresses, phone numbers, emails, ID/account numbers and customer counts are masked in answers, exports and logs, and shown only when you ask for that item ("show the customer address").
+- **Short summaries.** "Summarize the warranty policy" gives 2-3 sentences or a few bullets (about 60-80 words), then offers "Want more detail?". Ask for a "detailed" or "full" summary, or say "expand", for the long version. A summary covers only the document you name; without one, each document gets one labelled line.
 - **Download the chat.** "Download chat" (or typing "download chat history") saves the conversation as .txt, .json or .docx, with the same masking.
-- **Your documents.** PDF, Word, PowerPoint, Excel, HTML, Markdown, CSV, JSON and text. Add them on the chat page (protected by an upload key) or with a script. Azure AI Search splits, embeds and indexes them automatically.
-- **No keys.** The web app and the search service use managed identities; key-based access is switched off on Azure OpenAI, AI Search and Storage. The one secret, the upload key, lives in Key Vault. (The Free search tier has no managed identity, so in that mode the deployment puts the keys it needs in Key Vault.)
+- **Your documents.** PDF, Word, PowerPoint, Excel, HTML, Markdown, CSV, JSON and text. Add them on the chat page (no key needed) or with a script. Azure AI Search splits, embeds and indexes them automatically.
+- **No keys.** The web app and the search service use managed identities; key-based access is switched off on Azure OpenAI, AI Search and Storage. The one secret, an administrator key for deleting documents through the API, lives in Key Vault. (The Free search tier has no managed identity, so in that mode the deployment puts the keys it needs in Key Vault.)
 - **Sized by you.** Every SKU lives in a parameters file with `dev`, `standard` and `prod` presets, is validated before deployment, and appears as a dropdown in the portal wizard.
 
 <br/>
@@ -70,7 +71,7 @@ The old private-network files were removed (they remain in git history), because
 | B | The indexer reads new and changed files (also every 30 minutes) | Azure AI Search indexer (managed identity) |
 | C | Files are split into chunks and embedded, one search document per chunk | AI Search skillset + Azure OpenAI |
 
-Supporting services: **Key Vault** holds the upload key; **Application Insights** and **Log Analytics** collect telemetry and diagnostic logs. All service-to-service access uses **managed identities** with least-privilege roles.
+Supporting services: **Key Vault** holds the administrator key for deleting documents; **Application Insights** and **Log Analytics** collect telemetry and diagnostic logs. All service-to-service access uses **managed identities** with least-privilege roles.
 
 | Component | Resource | SKU parameters |
 |---|---|---|
@@ -186,7 +187,7 @@ Click the button at the top. The portal wizard asks for:
 | Hosting and data | App Service plan and instances; storage redundancy; Key Vault tier; log retention and daily cap |
 | Application | Deploy the application code (default **Yes**: App Service pulls and builds this repository's `main` branch); repository URL and branch; document upload on/off |
 
-It deploys: Log Analytics, Application Insights, a storage account with the `documents` container, Key Vault with a generated upload key, Azure OpenAI with two model deployments, AI Search, an App Service plan and web app, all role assignments, and (by default) the application code. Then follow [post-deployment steps](#post-deployment-steps-and-document-ingestion).
+It deploys: Log Analytics, Application Insights, a storage account with the `documents` container, Key Vault with a generated administrator key (for deleting documents), Azure OpenAI with two model deployments, AI Search, an App Service plan and web app, all role assignments, and (by default) the application code. Then follow [post-deployment steps](#post-deployment-steps-and-document-ingestion).
 
 ### 2. Script (bash)
 
@@ -203,7 +204,7 @@ az login
 ./Deployment/scripts/deploy.ps1 -ResourceGroup rg-chatbot-dev -Environment dev -Seed
 ```
 
-Both scripts validate the SKUs, create the resource group, deploy the template, grant you data access for ingestion, deploy the code, wait until the app reports healthy, and with `--seed`/`-Seed` load the sample documents. Options: `--set`/`-Set`, `--param`/`-Param` (secrets such as `demoPassword` and `uploadApiKey`, not printed), `--code-via-arm` (bash; code deployment with management calls only), `--skip-infra`/`-SkipInfra` (code only), `--skip-code`/`-SkipCode`, `--skip-region-check`/`-SkipRegionCheck`, `-l`/`-Location`, `-s`/`-Subscription`. On the first deployment the scripts generate the upload key and print it once. Redeploying is safe and keeps the stored upload key and demo password.
+Both scripts validate the SKUs, create the resource group, deploy the template, grant you data access for ingestion, deploy the code, wait until the app reports healthy, and with `--seed`/`-Seed` load the sample documents. Options: `--set`/`-Set`, `--param`/`-Param` (secrets such as `demoPassword` and `uploadApiKey`, not printed), `--code-via-arm` (bash; code deployment with management calls only), `--skip-infra`/`-SkipInfra` (code only), `--skip-code`/`-SkipCode`, `--skip-region-check`/`-SkipRegionCheck`, `-l`/`-Location`, `-s`/`-Subscription`. On the first deployment the scripts generate the administrator key (only for deleting documents through the API) and print it once. Redeploying is safe and keeps the stored key and demo password.
 
 ### 4. Demo from Azure Cloud Shell
 
@@ -224,17 +225,12 @@ See [Demo deployment](Documents/demo-deployment.md) for what it creates, what it
 ## Post-deployment steps and document ingestion
 
 1. **Check health:** open `https://<web app>/healthz`. Expect `"status": "ok"` and `"searchSetup": "ready"`. The web app creates the search index, data source, skillset and indexer on startup. While it shows `"pending"`, wait a few minutes. It retries for about 5 minutes and then shows `"failed"`; usually the role assignments were not active yet, so wait a few minutes and restart the web app.
-2. **Get the upload key:**
-   ```bash
-   az keyvault secret show --vault-name <key-vault> -n upload-api-key --query value -o tsv
-   ```
-   The scripts give the deploying identity access. After a portal deployment, first give yourself *Key Vault Secrets User* on the vault.
-3. **Add documents**, one of:
-   - **Chat page:** **Documents** → paste the upload key → choose a file → **Upload**. The dialog shows the indexing status and any per-file errors.
+2. **Add documents**, one of:
+   - **Chat page:** **Documents** → choose a file → **Upload**. No key is needed. The dialog shows the indexing status and any per-file errors.
    - **Script** (bulk, folders): `Deployment/scripts/ingest.sh -g <rg> ./my-docs ./faq.pdf` or `./Deployment/scripts/ingest.ps1 -ResourceGroup <rg> -Path ./my-docs`.
    - **Anything that writes to Blob Storage** (Storage Explorer, AzCopy, a pipeline) into the `documents` container; the indexer picks files up within 30 minutes.
-4. **Wait a few minutes**, then ask a question that your documents answer.
-5. Delete the sample documents if you loaded them (`--seed`): remove them from the `documents` container (portal or Storage Explorer), or call `DELETE /api/documents/<name>` with the `X-Upload-Key` header. The chat page has no delete button. The indexer removes deleted files from the index on its next run.
+3. **Wait a few minutes**, then ask a question that your documents answer.
+4. Delete the sample documents if you loaded them (`--seed`): remove them from the `documents` container (portal or Storage Explorer), or call `DELETE /api/documents/<name>` with the administrator key in the `X-Upload-Key` header (`az keyvault secret show --vault-name <key-vault> -n upload-api-key --query value -o tsv`). The chat page has no delete button. The indexer removes deleted files from the index on its next run.
 
 Full steps and troubleshooting: [Deployment guide](Documents/deployment-guide.md).
 
@@ -263,8 +259,8 @@ Full steps and troubleshooting: [Deployment guide](Documents/deployment-guide.md
 
 ### Security notes
 
-- **No keys anywhere:** managed identities with least-privilege roles; key auth disabled on Azure OpenAI, AI Search and Storage. The upload key is the only secret and lives in Key Vault.
-- **Uploads are protected** by the upload key, file-type and size checks, because uploaded text becomes grounding data for every user.
+- **No keys anywhere:** managed identities with least-privilege roles; key auth disabled on Azure OpenAI, AI Search and Storage. The administrator key for deleting documents is the only secret and lives in Key Vault.
+- **Anyone who can open the chat page can add documents**, and uploaded text becomes grounding data for every user. Uploads are checked for file type and size and rate limited per IP. Turn on sign-in (`authMode=password` or Entra ID) so only your users can add documents, or switch uploads off with `allowDocumentUpload=false`.
 - **The chat page has no sign-in by default.** Anyone with the URL can ask questions (rate limited per IP). For a demo, set `authMode=password`: one shared password, stored in Key Vault, with a lockout after 5 wrong tries (no Entra ID app registration needed). For internal use, turn on App Service Authentication with Microsoft Entra ID: *Web app → Authentication → Add identity provider → Microsoft*, then require authentication. The [Deployment guide](Documents/deployment-guide.md#3-after-deployment) has the CLI command.
 - Services keep public endpoints protected by Entra ID; private endpoints and WAF are not part of this template.
 - Details: [SECURITY.md](SECURITY.md).
