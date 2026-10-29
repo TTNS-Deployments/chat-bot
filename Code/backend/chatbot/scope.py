@@ -24,7 +24,8 @@ from typing import Sequence
 from .config import ALLOWED_EXTENSIONS
 
 _EXTENSIONS = {e.lstrip(".") for e in ALLOWED_EXTENSIONS}
-_DOC_WORDS = r"(?:documents?|docs?|files?|statements?|pdfs?|reports?|sheets?|spreadsheets?|manuals?)"
+_DOC_WORDS = (r"(?:documents?|docs?|files?|statements?|pdfs?|reports?|sheets?|spreadsheets?|manuals?|boqs?|quotations?|"
+              r"quotes?|invoices?|contracts?|estimates?|proposals?|tenders?|agreements?)")
 _REF = r"(?:the\s+)?(?P<ref>[^,.?!;:\n]{1,80}?)"
 _END = r"(?=\s*(?:[,.?!;:\n]|$))"
 
@@ -51,14 +52,17 @@ _WEAK = [
 _SPLIT = re.compile(r"\s*(?:,|&|\band\b|\bor\b|\bplus\b)\s*", re.I)
 _FILLER = frozenset("a an the this that these those my our your its of in on for to from with only just and or one".split())
 _STOP = _FILLER | frozenset("document documents doc docs file files statement statements pdf pdfs report reports "
-                            "sheet sheets spreadsheet spreadsheets manual manuals".split())
+                            "sheet sheets spreadsheet spreadsheets manual manuals boq boqs quotation quotations quote "
+                            "quotes invoice invoices contract contracts estimate estimates proposal proposals tender "
+                            "tenders agreement agreements".split())
 
 
 @dataclass(frozen=True)
 class Scope:
     documents: tuple[str, ...] = ()  # empty: all documents
     clarify: str = ""  # when set, ask the user this instead of answering
-    source: str = "all"  # all | message | reset | selection | previous
+    source: str = "all"  # all | message | reset | selection | previous | choice
+    choices: tuple[str, ...] = ()  # documents offered in the clarifying question
 
     @property
     def is_all(self) -> bool:
@@ -156,12 +160,14 @@ def resolve_scope(message: str, documents: Sequence[str], selected: Sequence[str
 
     if ambiguous and not chosen:
         ref, matches = ambiguous[0]
-        return Scope(clarify=f"More than one document matches “{ref}”: {_list(matches)}. Which one do you mean?")
+        return Scope(clarify=f"More than one document matches “{ref}”. Which one do you mean?\n\n{numbered(matches)}",
+                     choices=tuple(matches))
     if unresolved and not chosen:
         ref = unresolved[0]
         close = _partial(ref, available)
         if close:
-            return Scope(clarify=f"I could not find a document called “{ref}”. Did you mean {_list(close)}?")
+            return Scope(clarify=f"I could not find a document called “{ref}”. Did you mean one of these?\n\n"
+                                 f"{numbered(close)}", choices=tuple(close))
         listing = _list(available, "and") if available else "none yet"
         return Scope(clarify=f"I could not find a document called “{ref}”. The available documents are: {listing}. "
                              f"Which one should I search?")
@@ -185,3 +191,50 @@ def resolve_scope(message: str, documents: Sequence[str], selected: Sequence[str
             return Scope(kept, source="previous")
         return Scope(clarify=f"The document {previous[0]} is not available any more. Which document should I search?")
     return Scope()
+
+
+# --------------------------------------------------------------------------------------
+# Replies to "which document do you mean?"
+# --------------------------------------------------------------------------------------
+# "one" is not a number here: "the Delhi one" names a document, it does not mean the first.
+_ORDINALS = {"first": 1, "1st": 1, "second": 2, "2nd": 2, "two": 2, "third": 3, "3rd": 3, "three": 3,
+             "fourth": 4, "4th": 4, "four": 4, "fifth": 5, "5th": 5, "five": 5}
+_ALL_OF_THEM = re.compile(r"\b(?:all|both|each|every|compare|comparison|all of them)\b", re.I)
+_NUMBER = re.compile(r"^\s*(?:option|number|no\.?|#|document|doc|file)?\s*(\d{1,2})\s*[.)]?\s*$", re.I)
+
+
+def resolve_choice(reply: str, choices: Sequence[str]) -> list[str]:
+    """Which of the offered documents a reply picks: "2", "the second one", "Mumbai", a file name, or
+    "all of them". Returns [] when the reply does not pick any (then it is treated as a new question)."""
+    choices = list(choices)
+    if not choices:
+        return []
+    named = _named(reply, choices)
+    if named:
+        return named
+    number = _NUMBER.match(reply)
+    if number and 1 <= int(number.group(1)) <= len(choices):
+        return [choices[int(number.group(1)) - 1]]
+    words = _words(reply)
+    if len(words) <= 6:
+        if "last" in words:
+            return [choices[-1]]
+        for w in words:
+            if w in _ORDINALS and _ORDINALS[w] <= len(choices) and not any(w in _words(_stem(c)) for c in choices):
+                return [choices[_ORDINALS[w] - 1]]
+    if _ALL_OF_THEM.search(reply):
+        return choices
+    matches = match_reference(reply, choices)
+    if len(matches) == 1:
+        return matches
+    # Distinctive words: a word of the reply that appears in exactly one document name ("mumbai").
+    wanted = [w for w in _wanted(reply) if w not in _STOP]
+    hits = {c for c in choices for w in wanted if any(_same_word(w, t) for t in _words(_stem(c)))}
+    distinctive = [c for c in choices if c in hits and
+                   any(sum(any(_same_word(w, t) for t in _words(_stem(o))) for o in choices) == 1
+                       and any(_same_word(w, t) for t in _words(_stem(c))) for w in wanted)]
+    return distinctive if len(distinctive) == 1 else []
+
+
+def numbered(choices: Sequence[str]) -> str:
+    return "\n".join(f"{i}. {name}" for i, name in enumerate(choices, start=1))

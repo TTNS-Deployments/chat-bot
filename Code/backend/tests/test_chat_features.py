@@ -95,7 +95,8 @@ def test_unscoped_search_labels_every_source(app):
     body = ask(client, "What was the refund rate?")
     assert body["scope"] == []
     assert "[1] Document: " in model.prompts[-1] and "[2] Document: " in model.prompts[-1]
-    assert "Scope: all documents. Say which document each fact comes from." in model.prompts[-1]
+    assert ("Scope: all documents. These sources come from 2 documents: q1-statement.md, q2-statement.md. "
+            "Follow WHICH DOCUMENT.") in model.prompts[-1]
     assert [(c["title"], c["section"]) for c in body["citations"]] == [
         ("q1-statement.md", "Q1 statement"), ("q2-statement.md", "Q2 statement")]
 

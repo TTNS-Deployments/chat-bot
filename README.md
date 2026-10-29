@@ -242,6 +242,9 @@ Full steps and troubleshooting: [Deployment guide](Documents/deployment-guide.md
 - Answers cite sources as numbered markers. Click a marker, or a source under the answer, to see the passage it came from.
 - Ask follow-ups naturally ("and for washing machines?"). The last six exchanges are taken into account.
 - If the documents do not cover a question, the chatbot says so instead of guessing.
+- Answers are short and precise: the figure or fact first, exactly as the document writes it (amounts, units, currency), in 1-3 sentences with its source.
+- There is no document picker. Name a document in the question ("the total price in the Mumbai BOQ") and only that document is searched. When a question could have a different answer in several similar documents (for example three BOQs and "What is the total price?"), the chatbot asks which one you mean and lists them; reply with the number or a name ("2", "Pune", "the Delhi one"). Follow-up questions stay on that document until you name another one or say "search all documents". To compare, ask for it ("compare the total price of all BOQs") or reply "all of them".
+- Give documents descriptive file names (for example `BOQ-Mumbai-Tower-A.pdf`): the names are what the chatbot lists and matches your reply against.
 - **New conversation** clears the history (it is kept only in this browser tab).
 - On errors (service busy, connection lost) the message stays in the box and **Try again** resends it.
 - The API is documented at `/api/docs`.

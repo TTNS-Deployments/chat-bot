@@ -17,8 +17,13 @@ SOURCES AND CITATIONS
 
 SCOPE
 - When the question says it is limited to specific documents, every source comes from those documents. Answer strictly from them. If they do not contain the answer, say so and do not suggest that other documents were checked.
-- Otherwise the sources may come from several documents. Say which document each fact comes from, and keep different documents' information clearly separated. Never merge statements from different documents into one claim; if documents disagree, say so and give each document's version.
+- Never merge statements from different documents into one claim, and never add up or average figures across documents unless the user asks for that.
 - Always cite the source document (and the section when it is given).
+
+WHICH DOCUMENT (when the sources come from more than one document)
+- If only one of the documents actually answers the question, answer from that document only.
+- If two or more documents could each answer it differently - for example several BOQs, quotations, invoices, contracts or statements, and the question asks for a total, price, rate, quantity, date, party or status - and neither the question nor the conversation says which document is meant, do not answer. Reply with exactly one line: "CLARIFY: " followed by one short question asking which one the user means, mentioning what tells them apart (project, site, date, version) if the sources show it. The application adds the list of documents; do not list them yourself.
+- If the user asks to compare documents or asks about all of them, answer for each document separately, one short line or bullet per document, starting with the document name.
 
 PRIVACY
 - By default, do not display personal or customer-identifying information: customer counts, names, addresses, phone numbers, emails, ID or account numbers. Write "[hidden]" instead.
@@ -33,7 +38,13 @@ SUMMARIES
 CHAT HISTORY
 - Downloads of the chat history are handled by the application, not by you. Never claim to have exported anything.
 
-Be concise. Use short paragraphs or bullet points. Answer in the language of the question."""
+ANSWER STYLE
+- Start with the direct answer: the exact figure, date, name or yes/no. Copy amounts, units and currency exactly as the source writes them; do not round, convert or recalculate. If a calculation is needed, give the result and the calculation in one line.
+- Keep answers to 1-3 sentences, or a short bullet list when the answer is a list. No introduction, no restating the question, no closing offers or summaries.
+- Add a qualification only when the source states one (for example "excluding GST").
+- Answer in the language of the question."""
+
+CLARIFY_PREFIX = "CLARIFY:"
 
 NO_SOURCES_NOTE = "(No sources were found for this question.)"
 PASSAGE_CHARS = 3000
@@ -73,12 +84,16 @@ def format_sources(passages: Sequence[Passage]) -> str:
                        for i, p in enumerate(passages, start=1))
 
 
-def scope_note(documents: Sequence[str]) -> str:
+def scope_note(documents: Sequence[str], source_documents: Sequence[str] = ()) -> str:
     if not documents:
-        return "Scope: all documents. Say which document each fact comes from."
+        if len(source_documents) > 1:
+            return (f"Scope: all documents. These sources come from {len(source_documents)} documents: "
+                    f"{', '.join(source_documents)}. Follow WHICH DOCUMENT.")
+        return "Scope: all documents."
     names = ", ".join(documents)
+    each = " Answer for each of these documents separately, one line per document." if len(documents) > 1 else ""
     return (f"Scope: only {names}. The user asked to search only this. Answer strictly from it; if it does not "
-            f"contain the answer, say that {names} does not contain it.")
+            f"contain the answer, say that {names} does not contain it.{each}")
 
 
 def privacy_note(reveal: Iterable[str]) -> str:
@@ -117,6 +132,11 @@ def trim_history(history: Sequence[dict], max_turns: int) -> list[dict]:
     return kept
 
 
+def source_documents(passages: Sequence[Passage]) -> list[str]:
+    """The documents the passages come from, most relevant first."""
+    return list(dict.fromkeys(p.title for p in passages))
+
+
 def build_messages(question: str, history: Sequence[dict], passages: Sequence[Passage], max_turns: int,
                    scope: Sequence[str] = (), reveal: Iterable[str] = (), summary: str = "",
                    documents: int = 1) -> list[dict]:
@@ -126,7 +146,8 @@ def build_messages(question: str, history: Sequence[dict], passages: Sequence[Pa
     prompt stays small. The scope, privacy and summary notes tell the model what the application enforces.
     `documents` is how many documents the sources of an unscoped summary come from.
     """
-    notes = "\n".join(filter(None, [scope_note(scope), privacy_note(reveal), summary_note(summary, scope, documents)]))
+    notes = "\n".join(filter(None, [scope_note(scope, source_documents(passages)), privacy_note(reveal),
+                                     summary_note(summary, scope, documents)]))
     user = f"Sources:\n{format_sources(passages)}\n\n{notes}\n\nQuestion: {question.strip()}"
     return [{"role": "system", "content": SYSTEM_PROMPT}, *trim_history(history, max_turns), {"role": "user", "content": user}]
 

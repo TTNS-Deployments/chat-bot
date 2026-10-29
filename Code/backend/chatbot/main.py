@@ -91,6 +91,8 @@ class ChatResponse(BaseModel):
     conversationId: str | None = None
     scope: list[str] = Field(default_factory=list, description="Documents searched for this answer; empty means all.")
     action: ChatAction | None = Field(default=None, description="Set when the message asked to download the chat history.")
+    choices: list[str] = Field(default_factory=list, description="Set when the answer asks which document is meant: "
+                                                                 "the candidate documents, in the order listed.")
 
 
 # --------------------------------------------------------------------------------------
@@ -282,6 +284,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
             return _error(429, "rate_limited", "Too many questions in a short time. Please wait a minute.")
         conversation_id = body.conversationId if conversations.valid_id(body.conversationId) else conversations.new_id()
         previous_scope = conversations.scope(conversation_id)
+        pending_choices = conversations.choices(conversation_id)
         asked = now_iso()
 
         if (fmt := export_command(body.message)) is not None:
@@ -293,14 +296,15 @@ def create_app(settings: Settings | None = None, components: Components | None =
                                 action=ChatAction(type="download", format=fmt))
 
         result = components.chat.answer(body.message, [m.model_dump() for m in body.history],
-                                        selected=body.documents, previous_scope=previous_scope)
+                                        selected=body.documents, previous_scope=previous_scope,
+                                        choices=pending_choices)
         citations = [CitationOut(id=c.id, title=c.title, snippet=c.snippet, section=c.section) for c in result.citations]
         conversations.append(conversation_id, [
             {"role": "user", "content": body.message, "time": asked},
             {"role": "assistant", "content": result.answer, "citations": [c.model_dump() for c in citations],
-             "scope": list(result.scope), "revealed": sorted(result.revealed)}], result.scope)
+             "scope": list(result.scope), "revealed": sorted(result.revealed)}], result.scope, result.choices)
         return ChatResponse(answer=result.answer, citations=citations, conversationId=conversation_id,
-                            scope=list(result.scope))
+                            scope=list(result.scope), choices=list(result.choices))
 
     @app.get("/api/document-names", tags=["chat"])
     def document_names():

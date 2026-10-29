@@ -35,7 +35,8 @@ def test_no_scope_without_a_document_reference(message):
 def test_ambiguous_reference_asks_which_document():
     scope = resolve_scope("Check the bank statement only", DOCS)
     assert scope.is_all and "Bank Statement March.pdf" in scope.clarify and "Bank Statement April.pdf" in scope.clarify
-    assert scope.clarify.endswith("Which one do you mean?")
+    assert "Which one do you mean?" in scope.clarify and "1. Bank Statement March.pdf" in scope.clarify
+    assert scope.choices == ("Bank Statement March.pdf", "Bank Statement April.pdf")
 
 
 def test_unknown_document_asks_and_lists_documents():
