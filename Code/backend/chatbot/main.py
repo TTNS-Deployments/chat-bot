@@ -4,7 +4,7 @@
     GET    /api/config              title, subtitle and features for the page
     POST   /api/login, /api/logout  demo sign-in with a shared password (AUTH_MODE=password)
     POST   /api/chat                ask a question (with the conversation so far)
-    GET    /api/document-names      names of the searchable documents (for the "Search in" list)
+    GET    /api/document-names      names of the searchable documents
     GET    /api/history             the stored conversation                 (X-Conversation-Id)
     GET    /api/history/export      download it: ?format=txt|json|docx     (X-Conversation-Id)
     DELETE /api/history             forget the conversation                 (X-Conversation-Id)

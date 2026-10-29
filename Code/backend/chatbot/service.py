@@ -77,7 +77,7 @@ class ChatService:
             names = self.catalog.names()
             if len(names) > summaries.MAX_DOCUMENTS:
                 return ChatAnswer(answer=f"Which document should I summarize? The available documents are: "
-                                         f"{', '.join(names)}. Name it, or choose it in the “Search in” list.",
+                                         f"{', '.join(names)}. Name it in your question.",
                                   citations=[], clarification=True)
             each = names if len(names) > 1 else []
 

@@ -2,7 +2,8 @@
 // The conversation lives in this tab (sessionStorage) and is sent with each question so the
 // backend can resolve follow-ups. Model output is rendered with DOM text nodes, never innerHTML.
 // The server also stores the conversation (masked) under a random ID, for the "Download chat"
-// export, and remembers which documents it is limited to ("Search in"). Adding documents needs no key.
+// export, and remembers which documents it is limited to (a question that names a document). Adding
+  // documents needs no key.
 (() => {
   "use strict";
 
@@ -10,7 +11,6 @@
   const MAX_HISTORY_CHARS = 8000; // per message, the API's limit for history entries
   const STORE_KEY = "chatbot.conversation";
   const ID_KEY = "chatbot.conversationId";
-  const SCOPE_KEY = "chatbot.scope";
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -21,7 +21,7 @@
     docsButton: $("docs-button"), dialog: $("docs-dialog"), uploadForm: $("upload-form"),
     file: $("file"), uploadButton: $("upload-button"),
     uploadStatus: $("upload-status"), docList: $("doc-list"), indexerStatus: $("indexer-status"),
-    refreshDocs: $("refresh-docs"), signOut: $("sign-out"), scope: $("scope"),
+    refreshDocs: $("refresh-docs"), signOut: $("sign-out"),
     downloadMenu: $("download-menu"),
   };
 
@@ -34,9 +34,6 @@
   /** @type {{role: "user"|"assistant", content: string, scope?: string[], citations?: {id:number,title:string,snippet:string,section?:string}[]}[]} */
   let conversation = storage.get(STORE_KEY, []);
   let conversationId = storage.get(ID_KEY, null);
-  /** Documents the conversation is limited to; empty means all documents. */
-  let scope = storage.get(SCOPE_KEY, []);
-  let documentNames = [];
   let busy = false;
   let lastQuestion = null;
 
@@ -139,32 +136,6 @@
     els.retry.hidden = !lastQuestion;
   }
 
-  // ------------------------------------------------------------------ document scope
-  function renderScope() {
-    const names = [...new Set([...documentNames, ...scope])];
-    const options = [el("option", { value: "", text: "All documents" })];
-    for (const name of names) options.push(el("option", { value: name, text: name }));
-    if (scope.length > 1) options.push(el("option", { value: "*", text: `${scope.length} documents: ${scope.join(", ")}` }));
-    els.scope.replaceChildren(...options);
-    els.scope.value = scope.length > 1 ? "*" : (scope[0] || "");
-    els.scope.classList.toggle("scoped", scope.length > 0);
-  }
-
-  function setScope(value) {
-    scope = value;
-    storage.set(SCOPE_KEY, scope);
-    renderScope();
-  }
-
-  els.scope.addEventListener("change", () => {
-    if (els.scope.value !== "*") setScope(els.scope.value ? [els.scope.value] : []);
-  });
-
-  function loadDocumentNames() {
-    return api("/api/document-names").then((data) => { documentNames = data.documents || []; renderScope(); })
-      .catch(() => { /* the list keeps "All documents" */ });
-  }
-
   // ------------------------------------------------------------------ API
   async function api(path, options = {}) {
     let response;
@@ -198,14 +169,13 @@
       const result = await api("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question, history, conversationId, documents: scope }),
+        body: JSON.stringify({ message: question, history, conversationId }),
       });
       conversation.push({ role: "assistant", content: result.answer, citations: result.citations, scope: result.scope });
       lastQuestion = null;
       conversationId = result.conversationId || conversationId;
       storage.set(ID_KEY, conversationId);
       storage.set(STORE_KEY, conversation);
-      setScope(result.scope || []);
       if (result.action && result.action.type === "download") downloadHistory(result.action.format);
     } catch (err) {
       conversation.pop(); // keep the history consistent; the question goes back into the box
@@ -290,7 +260,6 @@
     conversation = [];
     lastQuestion = null;
     forgetConversation();
-    setScope([]);
     storage.remove(STORE_KEY);
     showError("");
     render();
@@ -348,7 +317,6 @@
     uploadStatus(`Uploading ${file.name}…`);
     try {
       const result = await api("/api/documents", { method: "POST", body });
-      loadDocumentNames();
       uploadStatus(result.indexing === "local" ? `${result.name} added.`
         : result.indexing === "scheduled" ? `${result.name} uploaded. It is indexed on the next scheduled run (within 30 minutes).`
         : `${result.name} uploaded. Indexing ${result.indexing}; it is searchable in a few minutes.`);
@@ -365,7 +333,6 @@
     forgetConversation();
     try { await fetch("/api/logout", { method: "POST" }); } catch { /* signed out locally anyway */ }
     storage.remove(STORE_KEY);
-    storage.remove(SCOPE_KEY);
     window.location.replace("/login.html");
   });
 
@@ -378,8 +345,6 @@
     els.uploadForm.dataset.maxMb = String(cfg.maxUploadMb);
   }).catch(() => { /* the static title stays */ });
 
-  renderScope();
-  loadDocumentNames();
   render();
   els.input.focus();
 })();

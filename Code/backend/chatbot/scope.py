@@ -12,7 +12,7 @@ How a scope is chosen, first match wins:
    the X file"). A reference that matches no document, or several, makes the bot ask. Weaker cues
    ("according to the X", "summarize the X") count only when they match exactly one document.
 3. "this document" / "just this file" means the document selected in the page, or else the current scope.
-4. The document selected in the page.
+4. The document selected in the page (API callers only; the chat page has no selector).
 5. The scope of the previous question (scopes persist until changed).
 """
 from __future__ import annotations
@@ -172,7 +172,7 @@ def resolve_scope(message: str, documents: Sequence[str], selected: Sequence[str
         current = [d for d in (selected or previous or ()) if d in available]
         if current:
             return Scope(tuple(current), source="selection" if selected else "previous")
-        return Scope(clarify="Which document do you mean? Choose one in the “Search in” list, or name it in your question.")
+        return Scope(clarify="Which document do you mean? Name it in your question.")
 
     if selected:
         missing = [d for d in selected if d not in available]
