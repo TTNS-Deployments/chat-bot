@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "17794583310464870299"
+      "templateHash": "12122099303977706530"
     },
     "description": "AI Based Chatbot: Azure OpenAI, Azure AI Search, Blob Storage, App Service, Key Vault and monitoring. All service-to-service access uses managed identities."
   },
@@ -328,6 +328,13 @@
       "defaultValue": "main",
       "metadata": {
         "description": "Branch to deploy from repositoryUrl."
+      }
+    },
+    "redactedCategories": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Which personal information is hidden in answers, exports and stored chats: a comma-separated list of name, address, phone, email, id and count, or none. Empty hides all of them."
       }
     },
     "allowDocumentUpload": {
@@ -1541,7 +1548,7 @@
             "value": "[parameters('repositoryBranch')]"
           },
           "appSettings": {
-            "value": "[union(createObject('CHATBOT_MODE', 'azure', 'AZURE_OPENAI_ENDPOINT', reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value, 'AZURE_OPENAI_API_VERSION', '2025-04-01-preview', 'AZURE_OPENAI_CHAT_DEPLOYMENT', variables('chatDeploymentName'), 'CHAT_REASONING_EFFORT', parameters('chatReasoningEffort'), 'AZURE_OPENAI_EMBEDDING_ENDPOINT', if(variables('separateEmbedding'), format('https://{0}.openai.azure.com/', variables('names').embedding), reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value), 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT', variables('embeddingDeploymentName'), 'AZURE_OPENAI_EMBEDDING_MODEL', parameters('embeddingModelName'), 'AZURE_OPENAI_EMBEDDING_DIMENSIONS', string(variables('embeddingDimensions')), 'AZURE_SEARCH_ENDPOINT', reference(resourceId('Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.endpoint.value, 'AZURE_SEARCH_INDEX', variables('searchIndexName'), 'AZURE_SEARCH_SEMANTIC_CONFIG', if(variables('semanticEnabled'), 'default', ''), 'AZURE_STORAGE_ACCOUNT_URL', reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.blobEndpoint.value, 'AZURE_STORAGE_CONTAINER', variables('documentsContainer'), 'AZURE_STORAGE_RESOURCE_ID', reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.id.value, 'ALLOW_DOCUMENT_UPLOAD', string(parameters('allowDocumentUpload')), 'UPLOAD_API_KEY', format('@Microsoft.KeyVault({0};SecretName=upload-api-key)', variables('keyVaultRef')), 'AUTH_MODE', parameters('authMode')), variables('passwordSettings'), variables('searchKeySettings'), variables('packageSettings'))]"
+            "value": "[union(createObject('CHATBOT_MODE', 'azure', 'AZURE_OPENAI_ENDPOINT', reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value, 'AZURE_OPENAI_API_VERSION', '2025-04-01-preview', 'AZURE_OPENAI_CHAT_DEPLOYMENT', variables('chatDeploymentName'), 'CHAT_REASONING_EFFORT', parameters('chatReasoningEffort'), 'AZURE_OPENAI_EMBEDDING_ENDPOINT', if(variables('separateEmbedding'), format('https://{0}.openai.azure.com/', variables('names').embedding), reference(resourceId('Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value), 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT', variables('embeddingDeploymentName'), 'AZURE_OPENAI_EMBEDDING_MODEL', parameters('embeddingModelName'), 'AZURE_OPENAI_EMBEDDING_DIMENSIONS', string(variables('embeddingDimensions')), 'AZURE_SEARCH_ENDPOINT', reference(resourceId('Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.endpoint.value, 'AZURE_SEARCH_INDEX', variables('searchIndexName'), 'AZURE_SEARCH_SEMANTIC_CONFIG', if(variables('semanticEnabled'), 'default', ''), 'AZURE_STORAGE_ACCOUNT_URL', reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.blobEndpoint.value, 'AZURE_STORAGE_CONTAINER', variables('documentsContainer'), 'AZURE_STORAGE_RESOURCE_ID', reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.id.value, 'ALLOW_DOCUMENT_UPLOAD', string(parameters('allowDocumentUpload')), 'UPLOAD_API_KEY', format('@Microsoft.KeyVault({0};SecretName=upload-api-key)', variables('keyVaultRef')), 'AUTH_MODE', parameters('authMode'), 'REDACTED_CATEGORIES', parameters('redactedCategories')), variables('passwordSettings'), variables('searchKeySettings'), variables('packageSettings'))]"
           }
         },
         "template": {

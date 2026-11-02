@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
+from .privacy import CATEGORIES, parse_categories
+
 PACKAGE_DIR = Path(__file__).resolve().parent
 
 
@@ -91,6 +93,7 @@ class Settings:
     rate_limit_per_minute: int = 20
     trust_forwarded_for: bool = False  # True behind App Service (WEBSITE_SITE_NAME is set) or a proxy you trust
     allow_sensitive_reveal: bool = True  # False: personal information stays hidden even when asked for
+    redacted_categories: tuple[str, ...] = CATEGORIES  # which kinds of personal information are hidden
     chat_history_dir: Path = REPO_ROOT / ".localdata" / "conversations"
     chat_history_days: int = 7
     azure_client_id: str = ""
@@ -166,6 +169,7 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
         azure_client_id=e.get("AZURE_CLIENT_ID", ""),
         local_data_dir=local_data_dir,
         allow_sensitive_reveal=_bool(e.get("ALLOW_SENSITIVE_REVEAL"), True),
+        redacted_categories=parse_categories(e.get("REDACTED_CATEGORIES")),
         # App Service shares /home between workers and instances; wwwroot can be read-only (run from package).
         chat_history_dir=Path(e.get("CHAT_HISTORY_DIR") or ("/home/data/chatbot/conversations" if e.get("WEBSITE_SITE_NAME")
                                                            else local_data_dir / "conversations")),

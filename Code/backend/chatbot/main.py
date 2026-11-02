@@ -37,6 +37,7 @@ from .config import FRONTEND_DIR, Settings, get_settings
 from .documents import safe_name
 from .errors import ChatbotError, NotConfigured, UpstreamError
 from .history import EXPORT_FORMATS, ConversationStore, export, export_command, now_iso
+from . import privacy
 from .privacy import MaskingFilter
 from .service import Components, SearchSetup, build_components
 
@@ -168,6 +169,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
         missing = ", ".join(settings.missing_azure_settings())
         raise RuntimeError(f"CHATBOT_MODE=azure but these settings are missing: {missing}")
 
+    privacy.configure(settings.redacted_categories)
     components = components or build_components(settings)
     conversations = components.conversations or ConversationStore(settings.chat_history_dir, settings.chat_history_days)
     setup = SearchSetup(components.search)

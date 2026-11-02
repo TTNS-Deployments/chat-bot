@@ -3,6 +3,9 @@
 Every answer, source snippet, stored message, export and log line goes through `mask()`. The chat
 model is also told to hide these values, but this layer is what enforces it.
 
+Which categories are hidden is a setting (REDACTED_CATEGORIES, the template parameter
+redactedCategories); a category left out is shown normally. Logs always mask every category.
+
 Categories (what a user can ask to see, one at a time):
     name      people's names
     address   postal addresses
@@ -26,6 +29,33 @@ LABELS = {"name": "names", "address": "addresses", "phone": "phone numbers", "em
 
 HIDDEN = "[hidden]"
 HIDDEN_COUNT = "[hidden, ask to view]"
+
+log = logging.getLogger(__name__)
+_redacted: frozenset[str] = frozenset(CATEGORIES)
+
+
+def parse_categories(value: str | None) -> tuple[str, ...]:
+    """The REDACTED_CATEGORIES setting: comma-separated categories, "none", or empty for all of them.
+    An unknown name is ignored with a warning; a setting with no valid name hides everything."""
+    text = (value or "").strip().lower()
+    if not text:
+        return CATEGORIES
+    if text == "none":
+        return ()
+    names = {part.strip() for part in text.split(",") if part.strip()}
+    if names - set(CATEGORIES):
+        log.warning("REDACTED_CATEGORIES: ignoring unknown categories %s", sorted(names - set(CATEGORIES)))
+    return tuple(c for c in CATEGORIES if c in names) or CATEGORIES
+
+
+def configure(categories) -> None:
+    """Set which categories `mask()` hides in this process (called at app startup)."""
+    global _redacted
+    _redacted = frozenset(categories)
+
+
+def redacted_categories() -> frozenset[str]:
+    return _redacted
 
 
 @dataclass(frozen=True)
@@ -139,12 +169,13 @@ def _looks_like_value(category: str, value: str) -> bool:
 
 
 class _Masker:
-    def __init__(self, reveal: frozenset[str]):
+    def __init__(self, reveal: frozenset[str], categories: frozenset[str]):
         self.reveal = reveal
+        self.categories = categories
         self.hidden: set[str] = set()
 
     def hides(self, category: str) -> bool:
-        if category in self.reveal:
+        if category in self.reveal or category not in self.categories:
             return False
         self.hidden.add(category)
         return True
@@ -219,12 +250,22 @@ class _Masker:
         return f"{lead}{_last4(stripped)}{tail}"
 
 
-def mask(text: str, reveal: frozenset[str] | set[str] = frozenset()) -> Masked:
-    """Hide sensitive values in `text`, except the categories in `reveal`."""
+def mask(text: str, reveal: frozenset[str] | set[str] = frozenset(), categories=None) -> Masked:
+    """Hide sensitive values in `text`, except the categories in `reveal`. `categories` are the kinds
+    to hide; by default the configured ones."""
     if not text:
         return Masked(text or "")
-    masker = _Masker(frozenset(reveal))
+    masker = _Masker(frozenset(reveal), _redacted if categories is None else frozenset(categories))
+    # An email that stays visible must not be damaged by the number and ID rules (98765432@example.com).
+    kept: list[str] = []
+    if "email" in masker.reveal or "email" not in masker.categories:
+        def keep(m: re.Match) -> str:
+            kept.append(m.group(0))
+            return f"\ue000{len(kept) - 1}\ue001"
+        text = _EMAIL.sub(keep, text)
     text = masker.patterns(masker.fields(masker.tables(text)))
+    for i, email in enumerate(kept):
+        text = text.replace(f"\ue000{i}\ue001", email)
     return Masked(text, frozenset(masker.hidden))
 
 
@@ -250,7 +291,7 @@ class MaskingFilter(logging.Filter):
             message = record.getMessage()
         except Exception:  # a malformed record is the logging module's problem, not ours
             return True
-        masked = mask(message).text
+        masked = mask(message, categories=CATEGORIES).text  # logs stay strict whatever the setting
         if masked != message:
             record.msg, record.args = masked, None
         return True

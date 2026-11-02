@@ -12,7 +12,7 @@ from .documents import BlobDocumentStore, DocumentStore, LocalDocumentStore
 from .errors import ChatbotError
 from .llm import AzureChatModel, ChatModel, LocalChatModel
 from .history import ConversationStore
-from .privacy import hidden_note, mask, requested_reveals
+from .privacy import hidden_note, mask, redacted_categories, requested_reveals
 from .prompts import CLARIFY_PREFIX, Citation, build_messages, extract_citations, select_passages, source_documents
 from .retrieval import AzureSearchRetriever, LocalRetriever, Retriever, build_search_query
 from .scope import Scope, numbered, resolve_choice, resolve_scope
@@ -109,7 +109,7 @@ class ChatService:
                                   citations=[], clarification=True)
             each = names if len(names) > 1 else []
 
-        asked = requested_reveals(question)
+        asked = requested_reveals(question) & redacted_categories()  # a category not hidden needs no asking
         reveal = asked if self.settings.allow_sensitive_reveal else frozenset()
         query = f"{query_prefix} {question}".strip() if query_prefix else build_search_query(question, history)
         if each:

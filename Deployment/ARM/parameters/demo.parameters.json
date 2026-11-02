@@ -95,6 +95,9 @@
     "authMode": {
       "value": "password"
     },
+    "redactedCategories": {
+      "value": "name,address,phone,id,count"
+    },
     "tags": {
       "value": {
         "owner": "TTNS",

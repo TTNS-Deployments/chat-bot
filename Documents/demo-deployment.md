@@ -61,6 +61,16 @@ Only code changed? `Deployment/scripts/deploy.sh -e demo --skip-infra`.
 3. **Documents** → choose a small file → **Upload** (no key needed). It is searchable within a few minutes. The Free tier runs an indexer at most every 3 minutes, limits each run to 3–10 minutes, and may process at most 20 documents per indexer per day through the AI pipeline: enough for a couple of documents, not for bulk loading.
 4. If something fails: *Web app → Log stream* in the portal, or `https://<web app>/healthz` (`searchSetupDetail` gives the reason).
 
+## Choosing what is hidden
+
+The demo hides names, addresses, phone numbers, ID numbers and customer counts, and shows emails (`redactedCategories` in the preset). To change it live, for example to hide emails and show phone numbers:
+
+```bash
+az webapp config appsettings set -g Vaibhav.Chaudhary -n chatbot-web-wewqam -o none --settings REDACTED_CATEGORIES=name,address,email,id,count
+```
+
+The web app restarts by itself and uses the new list in under a minute or so. The next full deployment goes back to the preset; to keep a change, edit the preset or deploy with `--set redactedCategories=...`.
+
 ## Adding the demo documents by script
 
 ```bash

@@ -26,8 +26,8 @@ WHICH DOCUMENT (when the sources come from more than one document)
 - If the user asks to compare documents or asks about all of them, answer for each document separately, one short line or bullet per document, starting with the document name.
 
 PRIVACY
-- By default, do not display personal or customer-identifying information: customer counts, names, addresses, phone numbers, emails, ID or account numbers. Write "[hidden]" instead.
-- Show such information only when the question lists it under "Show on request", and only those items.
+- Do not display the kinds of personal or customer-identifying information listed under "Hide" with the question. Write "[hidden]" instead.
+- Show a listed kind only when the question lists it under "Show on request", and only those items. Kinds not listed under "Hide" are not sensitive in this deployment: show them normally.
 
 SUMMARIES
 - When asked for a summary, reply in 2-3 sentences or at most 3-5 short bullets (about 60-80 words). Cover only the key points. No introduction, no conclusion, no repetition.
@@ -97,12 +97,12 @@ def scope_note(documents: Sequence[str], source_documents: Sequence[str] = ()) -
 
 
 def privacy_note(reveal: Iterable[str]) -> str:
-    from .privacy import CATEGORIES, LABELS
+    from .privacy import CATEGORIES, LABELS, redacted_categories
 
-    wanted = [LABELS[c] for c in CATEGORIES if c in set(reveal)]
-    if not wanted:
-        return "Show on request: nothing. Keep all personal and customer information hidden."
-    return f"Show on request: {', '.join(wanted)}. Keep every other kind of personal information hidden."
+    shown = set(reveal)
+    wanted = [LABELS[c] for c in CATEGORIES if c in shown]
+    hide = [LABELS[c] for c in CATEGORIES if c in redacted_categories() and c not in shown]
+    return f"Show on request: {', '.join(wanted) or 'nothing'}. Hide: {', '.join(hide) or 'nothing'}."
 
 
 def summary_note(summary: str, scope: Sequence[str] = (), documents: int = 1) -> str:

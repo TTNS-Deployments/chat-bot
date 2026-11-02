@@ -215,6 +215,9 @@ param repositoryUrl string = 'https://github.com/TTNS-Deployments/chat-bot'
 @description('Branch to deploy from repositoryUrl.')
 param repositoryBranch string = 'main'
 
+@description('Which personal information is hidden in answers, exports and stored chats: a comma-separated list of name, address, phone, email, id and count, or none. Empty hides all of them.')
+param redactedCategories string = ''
+
 @description('Let users add documents from the chat page (no key needed; behind sign-in when it is on).')
 param allowDocumentUpload bool = true
 
@@ -436,6 +439,7 @@ var coreSettings = {
   ALLOW_DOCUMENT_UPLOAD: string(allowDocumentUpload)
   UPLOAD_API_KEY: '@Microsoft.KeyVault(${keyVaultRef};SecretName=upload-api-key)'
   AUTH_MODE: authMode
+  REDACTED_CATEGORIES: redactedCategories
 }
 
 var passwordSettings = authMode == 'password' ? {

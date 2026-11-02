@@ -829,6 +829,19 @@
               "hideConfirmation": false
             },
             "visible": "[equals(steps('app').authMode, 'password')]"
+          },
+          {
+            "name": "redactedCategories",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Information to hide in answers",
+            "defaultValue": "name,address,phone,email,id,count",
+            "toolTip": "Comma-separated: name, address, phone, email, id, count. Remove one to show it normally, or enter none to hide nothing.",
+            "constraints": {
+              "required": false,
+              "regex": "^(none|[a-z]+(,[a-z]+){0,5})$",
+              "validationMessage": "Comma-separated names without spaces, or none."
+            },
+            "visible": true
           }
         ]
       }
@@ -864,7 +877,8 @@
       "embeddingLocation": "[if(equals(steps('ai').embedding.embeddingLocation, 'same'), '', steps('ai').embedding.embeddingLocation)]",
       "uploadApiKey": "[steps('app').uploadApiKey]",
       "authMode": "[steps('app').authMode]",
-      "demoPassword": "[if(equals(steps('app').authMode, 'password'), steps('app').demoPassword, '')]"
+      "demoPassword": "[if(equals(steps('app').authMode, 'password'), steps('app').demoPassword, '')]",
+      "redactedCategories": "[steps('app').redactedCategories]"
     }
   }
 }
