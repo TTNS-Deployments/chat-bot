@@ -236,5 +236,14 @@ def resolve_choice(reply: str, choices: Sequence[str]) -> list[str]:
     return distinctive if len(distinctive) == 1 else []
 
 
+def resolve_labelled_choice(reply: str, choices: Sequence[str], labels: Sequence[str] = ()) -> list[str]:
+    """Like resolve_choice, but a reply may also use the label the options were shown with ("Mishra")."""
+    if len(labels) != len(choices):
+        return resolve_choice(reply, choices)
+    aliases = [f"{label} {_stem(name)}".replace(".", " ") for label, name in zip(labels, choices)]
+    by_alias = dict(zip(aliases, choices))
+    return [by_alias[a] for a in resolve_choice(reply, aliases)]
+
+
 def numbered(choices: Sequence[str]) -> str:
     return "\n".join(f"{i}. {name}" for i, name in enumerate(choices, start=1))

@@ -21,6 +21,19 @@ class Passage:
     section: str = ""  # nearest heading, when the document has headings
 
 
+def diversify(passages: Sequence[Passage], top: int, max_documents: int = 4) -> list[Passage]:
+    """Keep `top` passages, but give each of the best-ranked documents a place first. Otherwise one long
+    document can fill every place, and the model never learns that another BOQ holds its own total."""
+    firsts: dict[str, Passage] = {}
+    for p in passages:
+        if p.title not in firsts and len(firsts) < max_documents:
+            firsts[p.title] = p
+    chosen = list(firsts.values())[:top]
+    picked = {id(p) for p in chosen}
+    chosen += [p for p in passages if id(p) not in picked][:top - len(chosen)]
+    return chosen
+
+
 class Retriever(Protocol):
     def retrieve(self, query: str, top: int, documents: Sequence[str] = ()) -> list[Passage]:
         """The best passages for `query`. A non-empty `documents` restricts the search to those documents."""

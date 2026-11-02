@@ -79,9 +79,10 @@ class ConversationStore:
             return None
 
     def append(self, conversation_id: str, messages: Sequence[dict], scope: Sequence[str],
-               choices: Sequence[str] = ()) -> dict:
+               choices: Sequence[str] = (), labels: Sequence[str] = ()) -> dict:
         """Add messages ({role, content, citations?, scope?, revealed?}) and remember the current scope.
-        `choices` are the documents the bot just asked the user to choose from (cleared otherwise)."""
+        `choices` are the documents the bot just asked the user to choose from, shown as `labels`
+        (cleared otherwise)."""
         with self._lock:
             conversation = self.load(conversation_id) or {"id": conversation_id, "created": now_iso(), "messages": []}
             for m in messages:
@@ -97,6 +98,7 @@ class ConversationStore:
                 })
             conversation["scope"] = list(scope)
             conversation["choices"] = list(choices)
+            conversation["choiceLabels"] = list(labels)
             conversation["updated"] = now_iso()
             self._write(conversation_id, conversation)
         self._prune()
@@ -108,6 +110,9 @@ class ConversationStore:
     def choices(self, conversation_id: str | None) -> list[str]:
         """Documents the bot asked the user to choose between in its last answer (empty if it did not ask)."""
         return list((self.load(conversation_id) or {}).get("choices") or [])
+
+    def choice_labels(self, conversation_id: str | None) -> list[str]:
+        return list((self.load(conversation_id) or {}).get("choiceLabels") or [])
 
     def delete(self, conversation_id: str | None) -> bool:
         if not self.valid_id(conversation_id):

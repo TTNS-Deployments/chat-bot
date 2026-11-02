@@ -287,6 +287,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
         conversation_id = body.conversationId if conversations.valid_id(body.conversationId) else conversations.new_id()
         previous_scope = conversations.scope(conversation_id)
         pending_choices = conversations.choices(conversation_id)
+        pending_labels = conversations.choice_labels(conversation_id)
         asked = now_iso()
 
         if (fmt := export_command(body.message)) is not None:
@@ -299,12 +300,12 @@ def create_app(settings: Settings | None = None, components: Components | None =
 
         result = components.chat.answer(body.message, [m.model_dump() for m in body.history],
                                         selected=body.documents, previous_scope=previous_scope,
-                                        choices=pending_choices)
+                                        choices=pending_choices, choice_labels=pending_labels)
         citations = [CitationOut(id=c.id, title=c.title, snippet=c.snippet, section=c.section) for c in result.citations]
         conversations.append(conversation_id, [
             {"role": "user", "content": body.message, "time": asked},
             {"role": "assistant", "content": result.answer, "citations": [c.model_dump() for c in citations],
-             "scope": list(result.scope), "revealed": sorted(result.revealed)}], result.scope, result.choices)
+             "scope": list(result.scope), "revealed": sorted(result.revealed)}], result.scope, result.choices, result.choice_labels)
         return ChatResponse(answer=result.answer, citations=citations, conversationId=conversation_id,
                             scope=list(result.scope), choices=list(result.choices))
 

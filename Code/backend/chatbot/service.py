@@ -13,9 +13,10 @@ from .errors import ChatbotError
 from .llm import AzureChatModel, ChatModel, LocalChatModel
 from .history import ConversationStore
 from .privacy import HIDDEN, hidden_note, mask, never_note, never_show_categories, redacted_categories, requested_reveals
-from .prompts import CLARIFY_PREFIX, Citation, build_messages, extract_citations, select_passages, source_documents
-from .retrieval import AzureSearchRetriever, LocalRetriever, Retriever, build_search_query
-from .scope import Scope, numbered, resolve_choice, resolve_scope
+from .prompts import (CLARIFY_PREFIX, Citation, build_messages, extract_citations, is_not_found, parse_clarification,
+                      select_passages, source_documents, strip_citations)
+from .retrieval import AzureSearchRetriever, LocalRetriever, Retriever, build_search_query, diversify
+from .scope import Scope, numbered, resolve_labelled_choice, resolve_scope
 from . import summary as summaries
 from .search import SearchClient, ensure_search_resources
 
@@ -44,6 +45,7 @@ class ChatAnswer:
     clarification: bool = False  # the answer is a question back to the user
     revealed: frozenset[str] = frozenset()  # privacy categories shown because the user asked
     choices: tuple[str, ...] = ()  # documents the user is asked to choose from (when clarification)
+    choice_labels: tuple[str, ...] = ()  # how those documents were shown (company or project)
 
 
 class DocumentCatalog:
@@ -75,10 +77,11 @@ class ChatService:
         self.catalog = DocumentCatalog(retriever.document_names)
 
     def answer(self, question: str, history: Sequence[dict], selected: Sequence[str] | None = None,
-               previous_scope: Sequence[str] = (), choices: Sequence[str] = ()) -> ChatAnswer:
+               previous_scope: Sequence[str] = (), choices: Sequence[str] = (),
+               choice_labels: Sequence[str] = ()) -> ChatAnswer:
         """Answer `question`. `selected` is the document choice sent by an API caller (None: no choice sent,
         [] all documents); `previous_scope` is the scope of the conversation so far; `choices` are the
-        documents the previous answer asked the user to choose from."""
+        documents the previous answer asked the user to choose from, shown as `choice_labels`."""
         scope = resolve_scope(question, self.catalog.names(), selected, previous_scope)
         if scope.clarify:
             log.info("Asked which document is meant (scope unclear)")
@@ -89,15 +92,17 @@ class ChatService:
         query_prefix = ""
         if choices and scope.source not in ("message", "reset"):
             available = set(self.catalog.names())
-            offered = [c for c in choices if c in available]
-            picked = resolve_choice(question, offered)
+            pairs = list(zip(choices, choice_labels)) if len(choice_labels) == len(choices) else [(c, c) for c in choices]
+            pairs = [(c, label) for c, label in pairs if c in available]
+            offered, labels = [c for c, _ in pairs], [label for _, label in pairs]
+            picked = resolve_labelled_choice(question, offered, labels)
             if picked:
                 scope = Scope(tuple(picked), source="choice")
                 query_prefix = _last_user_message(history)  # the question the user is answering
             elif offered and len(question.split()) <= _SHORT_REPLY_WORDS and not question.rstrip().endswith("?"):
-                return ChatAnswer(answer=_clarification("I did not catch which document you mean. Please choose one:",
-                                                        offered),
-                                  citations=[], scope=tuple(previous_scope), clarification=True, choices=tuple(offered))
+                return ChatAnswer(answer=_clarification("I did not catch which one you mean. Please choose one:", labels),
+                                  citations=[], scope=tuple(previous_scope), clarification=True, choices=tuple(offered),
+                                  choice_labels=tuple(labels))
 
         kind = summaries.summary_request(question, history)
         each: list[str] = []  # an unscoped short summary covers each document separately
@@ -121,7 +126,11 @@ class ChatService:
         else:
             if kind:
                 query = summaries.summary_query(query, scope.documents or self.catalog.names()[:1])
-            found = self.retriever.retrieve(query, self.settings.search_top_k, scope.documents)
+            top = self.settings.search_top_k
+            if scope.documents or kind:
+                found = self.retriever.retrieve(query, top, scope.documents)
+            else:  # look wider, so that every competing document can reach the model
+                found = diversify(self.retriever.retrieve(query, top * 3, ()), top)
         passages = select_passages(found, self.settings.max_source_chars)
         removed: set[str] = set()
         if never:  # the model must not receive these at all
@@ -144,15 +153,13 @@ class ChatService:
         short = kind == summaries.SHORT and bool(passages)
         cap = self.settings.summary_max_tokens + summaries.TOKENS_PER_DOCUMENT * (documents - 1) if short else None
         text = self.model.complete(messages, max_tokens=cap)
-        candidates = source_documents(passages)[:MAX_CHOICES]
         if text and text.lstrip().upper().startswith(CLARIFY_PREFIX):
-            ask = text.lstrip()[len(CLARIFY_PREFIX):].strip().splitlines()[0].strip() if text.strip() != CLARIFY_PREFIX else ""
-            ask = ask or "Which document do you mean?"
-            if not scope.documents and len(candidates) > 1:
-                log.info("Asked which document is meant (%d candidate documents)", len(candidates))
-                return ChatAnswer(answer=_clarification(mask(ask).text, candidates), citations=[],
-                                  scope=tuple(previous_scope), clarification=True, choices=tuple(candidates))
-            text = ask  # a question back without several candidates: show it as it is
+            return self._ask_back(text, passages, scope, previous_scope)
+        if is_not_found(text):
+            if scope.source == "previous":
+                # An earlier choice must not trap later questions about something else: search everything.
+                return self.answer(question, history, selected=[])
+            text = strip_citations(text)  # nothing was found, so nothing supports the sentence
         if short and text:
             limit = summaries.SHORT_WORDS if documents == 1 else summaries.WORDS_PER_DOCUMENT * documents
             text = summaries.trim_summary(summaries.strip_offer(text), limit)
@@ -174,6 +181,33 @@ class ChatService:
                  len(history), len(passages), len(citations), f"{len(scope.documents)} document(s)"
                  if scope.documents else "all", ",".join(sorted(reveal)) or "nothing", kind or "no")
         return ChatAnswer(answer=answer, citations=citations, scope=scope.documents, revealed=reveal)
+
+
+    def _ask_back(self, text: str, passages: Sequence, scope: Scope, previous_scope: Sequence[str]) -> ChatAnswer:
+        """Show the model's question. Options are named by company or project; the source number each
+        one cites says which document it means, and the conversation remembers that for the reply."""
+        ask, options = parse_clarification(text)
+        ask = mask(ask or "Which one do you mean?").text
+        valid = [(mask(label).text, passages[n - 1].title) for label, n in options if 1 <= n <= len(passages)]
+        by_document: dict[str, str] = {}
+        for label, title in valid:
+            by_document.setdefault(title, label)
+        if not scope.documents and len(by_document) > 1:
+            documents = list(by_document)[:MAX_CHOICES]
+            labels = [by_document[d] for d in documents]
+        elif not scope.documents and not valid and len(source_documents(passages)) > 1:
+            documents = source_documents(passages)[:MAX_CHOICES]  # the model named no options
+            labels = documents
+        else:
+            # The choice is inside one document (for example two BOQs in one workbook). Stay on it: the
+            # reply is read together with this question, by the model.
+            shown = list(dict.fromkeys(label for label, _ in valid))
+            kept = tuple(scope.documents or by_document or previous_scope)
+            return ChatAnswer(answer=_clarification(ask, shown) if shown else ask, citations=[], scope=kept,
+                              clarification=True)
+        log.info("Asked which one is meant (%d candidate documents)", len(documents))
+        return ChatAnswer(answer=_clarification(ask, labels), citations=[], scope=tuple(previous_scope),
+                          clarification=True, choices=tuple(documents), choice_labels=tuple(labels))
 
 
 @dataclass
