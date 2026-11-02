@@ -98,6 +98,9 @@
     "redactedCategories": {
       "value": "name,address,phone,id,count"
     },
+    "neverShowCategories": {
+      "value": "phone"
+    },
     "tags": {
       "value": {
         "owner": "TTNS",

@@ -49,6 +49,7 @@ Values are the three presets. "Options" are what the template accepts; anything 
 | `logAnalyticsDailyQuotaGb` | 1 | 5 | -1 | Daily ingestion cap in GB; `-1` = no cap. When the cap is hit, logs stop until the next day. |
 | **Application** | | | | |
 | `redactedCategories` | all | all | all | Which personal information is hidden: comma-separated `name`, `address`, `phone`, `email`, `id`, `count`, or `none`. The demo preset uses `name,address,phone,id,count` (emails shown). |
+| `neverShowCategories` | none | none | none | Hidden even when asked for, and removed before the chat model sees them. The demo preset uses `phone`. |
 | `allowDocumentUpload` | true | true | true | Show the upload control on the chat page. Adding documents needs no key. |
 
 Parameters that are **not** in the SKU files, because the scripts or the portal set them:

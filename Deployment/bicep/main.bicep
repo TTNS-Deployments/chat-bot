@@ -218,6 +218,9 @@ param repositoryBranch string = 'main'
 @description('Which personal information is hidden in answers, exports and stored chats: a comma-separated list of name, address, phone, email, id and count, or none. Empty hides all of them.')
 param redactedCategories string = ''
 
+@description('Personal information that must never be shown, even when asked for (compliance): a comma-separated list of the same names. Replaced completely and removed before the chat model sees it. Empty for no such rule.')
+param neverShowCategories string = ''
+
 @description('Let users add documents from the chat page (no key needed; behind sign-in when it is on).')
 param allowDocumentUpload bool = true
 
@@ -440,6 +443,7 @@ var coreSettings = {
   UPLOAD_API_KEY: '@Microsoft.KeyVault(${keyVaultRef};SecretName=upload-api-key)'
   AUTH_MODE: authMode
   REDACTED_CATEGORIES: redactedCategories
+  NEVER_SHOW_CATEGORIES: neverShowCategories
 }
 
 var passwordSettings = authMode == 'password' ? {

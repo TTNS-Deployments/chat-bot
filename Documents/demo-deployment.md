@@ -63,13 +63,17 @@ Only code changed? `Deployment/scripts/deploy.sh -e demo --skip-infra`.
 
 ## Choosing what is hidden
 
-The demo hides names, addresses, phone numbers, ID numbers and customer counts, and shows emails (`redactedCategories` in the preset). To change it live, for example to hide emails and show phone numbers:
+The demo hides names, addresses, phone numbers, ID numbers and customer counts, and shows emails (`redactedCategories` in the preset). **Phone numbers are never shown, even when asked for** (`neverShowCategories`): they are replaced completely, with no last four digits, and removed from document passages before the chat model sees them.
+
+To show that the list is customizable, hide emails too:
 
 ```bash
-az webapp config appsettings set -g Vaibhav.Chaudhary -n chatbot-web-wewqam -o none --settings REDACTED_CATEGORIES=name,address,email,id,count
+az webapp config appsettings set -g Vaibhav.Chaudhary -n chatbot-web-wewqam -o none --settings REDACTED_CATEGORIES=name,address,phone,email,id,count
 ```
 
-The web app restarts by itself and uses the new list in under a minute or so. The next full deployment goes back to the preset; to keep a change, edit the preset or deploy with `--set redactedCategories=...`.
+The web app restarts by itself; allow a minute or so. To show emails again, run it with `REDACTED_CATEGORIES=name,address,phone,id,count`. The next full deployment goes back to the preset; to keep a change, edit the preset or deploy with `--set redactedCategories=...`.
+
+**Limits.** Detection is rule based. It hides phone-shaped numbers unless they clearly are something else: a number straight after a currency or amount word, followed by a unit, in a Qty/Rate/Amount table column, or after a word such as invoice, tender or item. A phone number written straight after such a word, spelled out in words, or inside an image would not be recognised. The original documents in storage and the search index still contain the numbers. If a document must not hold them at all, remove them before uploading.
 
 ## Adding the demo documents by script
 

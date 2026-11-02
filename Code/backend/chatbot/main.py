@@ -169,7 +169,7 @@ def create_app(settings: Settings | None = None, components: Components | None =
         missing = ", ".join(settings.missing_azure_settings())
         raise RuntimeError(f"CHATBOT_MODE=azure but these settings are missing: {missing}")
 
-    privacy.configure(settings.redacted_categories)
+    privacy.configure(settings.redacted_categories, settings.never_show_categories)
     components = components or build_components(settings)
     conversations = components.conversations or ConversationStore(settings.chat_history_dir, settings.chat_history_days)
     setup = SearchSetup(components.search)

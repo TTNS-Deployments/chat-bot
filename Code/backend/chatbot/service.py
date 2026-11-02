@@ -12,7 +12,7 @@ from .documents import BlobDocumentStore, DocumentStore, LocalDocumentStore
 from .errors import ChatbotError
 from .llm import AzureChatModel, ChatModel, LocalChatModel
 from .history import ConversationStore
-from .privacy import hidden_note, mask, redacted_categories, requested_reveals
+from .privacy import HIDDEN, hidden_note, mask, never_note, never_show_categories, redacted_categories, requested_reveals
 from .prompts import CLARIFY_PREFIX, Citation, build_messages, extract_citations, select_passages, source_documents
 from .retrieval import AzureSearchRetriever, LocalRetriever, Retriever, build_search_query
 from .scope import Scope, numbered, resolve_choice, resolve_scope
@@ -110,7 +110,8 @@ class ChatService:
             each = names if len(names) > 1 else []
 
         asked = requested_reveals(question) & redacted_categories()  # a category not hidden needs no asking
-        reveal = asked if self.settings.allow_sensitive_reveal else frozenset()
+        never = never_show_categories()
+        reveal = (asked - never) if self.settings.allow_sensitive_reveal else frozenset()
         query = f"{query_prefix} {question}".strip() if query_prefix else build_search_query(question, history)
         if each:
             per_document = max(1, self.settings.search_top_k // len(each))
@@ -122,6 +123,14 @@ class ChatService:
                 query = summaries.summary_query(query, scope.documents or self.catalog.names()[:1])
             found = self.retriever.retrieve(query, self.settings.search_top_k, scope.documents)
         passages = select_passages(found, self.settings.max_source_chars)
+        removed: set[str] = set()
+        if never:  # the model must not receive these at all
+            cleaned = []
+            for p in passages:
+                m = mask(p.content, categories=never)
+                removed |= m.hidden & never
+                cleaned.append(replace(p, content=m.text))
+            passages = cleaned
         if scope.documents and not passages:
             # Never fall back to other documents: say so and let the user widen the search.
             names = ", ".join(scope.documents)
@@ -151,8 +160,12 @@ class ChatService:
             text = "I could not produce an answer. Please try rephrasing the question."
         masked = mask(text, reveal)
         citations = [replace(c, snippet=mask(c.snippet, reveal).text) for c in extract_citations(text, passages)]
-        notes = [hidden_note(masked.hidden)]
-        if asked and not reveal:
+        hidden = masked.hidden | (frozenset(removed) if HIDDEN in masked.text else frozenset())
+        notes = [hidden_note(hidden)]
+        blocked = asked & never
+        if blocked and not hidden & blocked:
+            notes.append(never_note(blocked))
+        if asked - never and not reveal:
             notes.append(REVEAL_DISABLED_NOTE)
         if short:
             notes.append(summaries.MORE_DETAIL)

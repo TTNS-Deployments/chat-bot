@@ -124,12 +124,13 @@ def validate_static(values: dict, template: dict) -> list[str]:
     if isinstance(prefix, str) and not re.fullmatch(r"[a-z0-9]{3,8}", prefix):
         errors.append("solutionPrefix: use 3-8 lowercase letters or digits (it becomes part of storage and Key Vault names)")
 
-    categories = get("redactedCategories")
-    if isinstance(categories, str) and categories.strip().lower() not in ("", "none"):
-        known = ("name", "address", "phone", "email", "id", "count")
-        unknown = [c.strip() for c in categories.split(",") if c.strip().lower() not in known]
-        if unknown:
-            errors.append(f"redactedCategories: unknown {', '.join(unknown)}. Use {', '.join(known)}, or none")
+    for setting in ("redactedCategories", "neverShowCategories"):
+        categories = get(setting)
+        if isinstance(categories, str) and categories.strip().lower() not in ("", "none"):
+            known = ("name", "address", "phone", "email", "id", "count")
+            unknown = [c.strip() for c in categories.split(",") if c.strip().lower() not in known]
+            if unknown:
+                errors.append(f"{setting}: unknown {', '.join(unknown)}. Use {', '.join(known)}, or none")
 
     sku, replicas, partitions = get("searchSku"), get("searchReplicaCount"), get("searchPartitionCount")
     if sku == "free":

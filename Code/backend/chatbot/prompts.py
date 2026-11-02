@@ -97,12 +97,14 @@ def scope_note(documents: Sequence[str], source_documents: Sequence[str] = ()) -
 
 
 def privacy_note(reveal: Iterable[str]) -> str:
-    from .privacy import CATEGORIES, LABELS, redacted_categories
+    from .privacy import CATEGORIES, LABELS, never_show_categories, redacted_categories
 
     shown = set(reveal)
     wanted = [LABELS[c] for c in CATEGORIES if c in shown]
     hide = [LABELS[c] for c in CATEGORIES if c in redacted_categories() and c not in shown]
-    return f"Show on request: {', '.join(wanted) or 'nothing'}. Hide: {', '.join(hide) or 'nothing'}."
+    never = [LABELS[c] for c in CATEGORIES if c in never_show_categories()]
+    strict = f" Never show, even if asked: {', '.join(never)}." if never else ""
+    return f"Show on request: {', '.join(wanted) or 'nothing'}. Hide: {', '.join(hide) or 'nothing'}.{strict}"
 
 
 def summary_note(summary: str, scope: Sequence[str] = (), documents: int = 1) -> str:

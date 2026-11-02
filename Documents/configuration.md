@@ -49,6 +49,7 @@ The web app reads environment variables. On Azure they are App Service app setti
 | `AZURE_CLIENT_ID` | | Client ID of a user-assigned managed identity, if you switch the web app to one. |
 | `LOCAL_DATA_DIR` | `.localdata` | Local mode: where uploaded files are stored. |
 | `REDACTED_CATEGORIES` | all | Which personal information is hidden: a comma-separated list of `name`, `address`, `phone`, `email`, `id`, `count`, or `none`. Set by the template parameter `redactedCategories`; the demo uses `name,address,phone,id,count`, so emails are shown and phone numbers hidden. A misspelt name is ignored, and a list with no valid name hides everything. Logs always mask all categories. |
+| `NEVER_SHOW_CATEGORIES` | none | Compliance list, same names (template parameter `neverShowCategories`; the demo uses `phone`). These are hidden even when asked for and whatever `REDACTED_CATEGORIES` says, replaced completely (no last four digits), and removed from document passages before the chat model sees them. |
 | `ALLOW_SENSITIVE_REVEAL` | `true` | `false` keeps personal and customer information hidden even when a user asks for it. The app has no user roles; this is the switch for deployments where nobody should see such values. |
 | `CHAT_HISTORY_DIR` | `/home/data/chatbot/conversations` on App Service, else `.localdata/conversations` | Where conversations are stored for the "Download chat" export. Must be shared by all workers and instances (App Service's `/home` is). |
 | `CHAT_HISTORY_DAYS` | `7` | Stored conversations untouched for this many days are deleted. |
